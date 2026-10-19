@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AddItemForm } from "@/app/items/add-item-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,6 +178,9 @@ export default async function ItemsPage({
                     </dd>
                   </div>
                 </dl>
+                <Button asChild variant="secondary" className="mt-4 h-12 w-full">
+                  <Link href={`/items/${item.id}`}>Details</Link>
+                </Button>
               </li>
             );
           })}

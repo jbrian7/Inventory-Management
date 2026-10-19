@@ -1,12 +1,4 @@
-import { Settings } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { PrinterForm } from "@/app/settings/printer-form";
 
 export default function SettingsPage() {
   return (
@@ -17,23 +9,7 @@ export default function SettingsPage() {
           Device and stockroom preferences for Zap Zone.
         </p>
       </header>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Settings className="size-4" aria-hidden="true" />
-            Ready for setup
-          </CardTitle>
-          <CardDescription>
-            Printer and staff options will be added here.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            The default item location is the stockroom. Label printing connects
-            in a later step.
-          </p>
-        </CardContent>
-      </Card>
+      <PrinterForm />
     </div>
   );
 }

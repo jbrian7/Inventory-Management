@@ -23,6 +23,8 @@ curl -s -X POST http://127.0.0.1:3001/print \
 
 A successful response includes `imageBytes` for the PNG generated from `qrData`.
 
+The browser on an iPad calls this server directly, so `POST /print` allows cross-origin requests from the web app.
+
 ## Send the label to a printer
 
 By default `PRINTER_DRIVER=command`. The server writes the QR PNG and runs `print-command.js`.
