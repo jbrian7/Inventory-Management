@@ -1,0 +1,17 @@
+{
+  "name": "pi-print-server",
+  "version": "1.0.0",
+  "description": "Local print server for Zap Zone QR labels.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.3.0",
+    "qrcode": "^1.5.4"
+  }
+}
