@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, LayoutDashboard, Package, ScanLine } from "lucide-react";
+import { LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/items", label: "Items", icon: Package },
   { href: "/scan", label: "Scan", icon: ScanLine },
-  { href: "/history", label: "History", icon: History },
+  { href: "/items", label: "Items", icon: Package },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function BottomNav() {
