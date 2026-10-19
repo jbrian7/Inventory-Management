@@ -82,6 +82,16 @@ body {
     --sidebar-ring: 240 4.9% 83.9%;
   }
 }
+#qr-viewfinder {
+  height: 100%;
+}
+
+#qr-viewfinder video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
 @layer base {
   * {
     @apply border-border;
