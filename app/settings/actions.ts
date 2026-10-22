@@ -159,4 +159,39 @@ export async function updateCategory(_previous: ActionState, formData: FormData)
   return saveNamed("category", cleanName(formData.get("id")), cleanName(formData.get("name")));
 }
 
+export async function deleteLocation(_previous: ActionState, formData: FormData) {
+  return deleteNamed("location", cleanName(formData.get("id")));
+}
+
+export async function deleteCategory(_previous: ActionState, formData: FormData) {
+  return deleteNamed("category", cleanName(formData.get("id")));
+}
+
+async function deleteNamed(kind: "location" | "category", id: string): Promise<ActionState> {
+  await requireManager();
+  if (!id) {
+    return { error: "That record is missing." };
+  }
+  const inUse =
+    kind === "location"
+      ? await prisma.item.count({ where: { locationId: id } })
+      : await prisma.item.count({ where: { categoryId: id } });
+  if (inUse > 0) {
+    return {
+      error:
+        kind === "location"
+          ? "Move the items in this location before deleting it."
+          : "Move the items in this category before deleting it.",
+    };
+  }
+  if (kind === "location") {
+    await prisma.location.delete({ where: { id } });
+  } else {
+    await prisma.category.delete({ where: { id } });
+  }
+  revalidatePath("/settings");
+  revalidatePath("/items");
+  return { saved: true };
+}
+
 export type { Role };

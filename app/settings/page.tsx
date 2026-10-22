@@ -5,11 +5,13 @@ import { NameManager } from "@/app/settings/name-manager";
 import {
   createCategory,
   createLocation,
+  deleteCategory,
+  deleteLocation,
   updateCategory,
   updateLocation,
 } from "@/app/settings/actions";
 import { UserManager } from "@/app/settings/user-manager";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { canManageSettings } from "@/lib/roles";
@@ -38,34 +40,48 @@ export default async function SettingsPage() {
         </p>
       </header>
 
-      <Tabs defaultValue="users">
-        <TabsList className="grid h-12 w-full grid-cols-3">
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="locations">Locations</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-        </TabsList>
-        <TabsContent value="users" className="mt-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Users</CardTitle>
+        </CardHeader>
+        <CardContent>
           <UserManager users={users} />
-        </TabsContent>
-        <TabsContent value="locations" className="mt-4">
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Locations</CardTitle>
+        </CardHeader>
+        <CardContent>
           <NameManager
             label="Location"
+            addLabel="Add New Location"
             placeholder="Redemption Counter"
             items={locations}
             createAction={createLocation}
             updateAction={updateLocation}
+            deleteAction={deleteLocation}
           />
-        </TabsContent>
-        <TabsContent value="categories" className="mt-4">
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Categories</CardTitle>
+        </CardHeader>
+        <CardContent>
           <NameManager
             label="Category"
+            addLabel="Add New Category"
             placeholder="Arcade Parts"
             items={categories}
             createAction={createCategory}
             updateAction={updateCategory}
+            deleteAction={deleteCategory}
           />
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
 
       <PrinterForm />
     </div>

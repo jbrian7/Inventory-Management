@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { AddItemButton } from "@/app/items/add-item-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,11 +41,13 @@ export type CatalogItem = {
 export function ItemCatalog({
   items,
   categories,
+  locations = [],
   initialQuery = "",
   canEdit = false,
 }: {
   items: CatalogItem[];
   categories: { id: string; name: string }[];
+  locations?: { id: string; name: string }[];
   initialQuery?: string;
   canEdit?: boolean;
 }) {
@@ -90,10 +93,10 @@ export function ItemCatalog({
             placeholder="Name or SKU"
             autoCapitalize="none"
             autoCorrect="off"
-            className="h-12"
+            className="h-10"
           />
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger className="h-12 w-36 shrink-0" aria-label="Category">
+            <SelectTrigger className="h-10 w-36 shrink-0" aria-label="Category">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -105,6 +108,7 @@ export function ItemCatalog({
               ))}
             </SelectContent>
           </Select>
+          {canEdit ? <AddItemButton locations={locations} categories={categories} /> : null}
         </div>
       </div>
 

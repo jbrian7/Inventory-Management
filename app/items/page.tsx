@@ -1,4 +1,3 @@
-import { AddItemForm } from "@/app/items/add-item-form";
 import { ItemCatalog } from "@/app/items/item-catalog";
 import { TopMovers } from "@/app/items/top-movers";
 import { getCurrentUser } from "@/lib/current-user";
@@ -48,9 +47,8 @@ export default async function ItemsPage({
           isManualOos: item.isManualOos,
         }))}
         canEdit={canEdit}
+        locations={locations}
       />
-
-      {canEdit ? <AddItemForm locations={locations} categories={categories} /> : null}
     </div>
   );
 }
