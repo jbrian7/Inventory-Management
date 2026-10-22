@@ -19,7 +19,7 @@ export default async function ItemDetailsPage({
     notFound();
   }
 
-  const lowStock = item.quantity <= item.threshold;
+  const lowStock = !item.isManualOos && item.quantity <= item.threshold;
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,6 +27,13 @@ export default async function ItemDetailsPage({
         <p className="text-sm text-muted-foreground">Item details</p>
         <h1 className="text-2xl font-semibold tracking-tight">{item.name}</h1>
         <p className="text-sm text-muted-foreground">{item.sku}</p>
+        {item.isManualOos ? (
+          <p>
+            <span className="inline-flex rounded-md bg-red-600 px-2.5 py-1 text-xs font-bold tracking-wide text-white">
+              OUT OF STOCK
+            </span>
+          </p>
+        ) : null}
       </header>
 
       <dl className="grid gap-3 rounded-xl border bg-card p-4 text-sm">
