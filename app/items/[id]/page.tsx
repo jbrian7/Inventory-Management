@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 
 import { PrintLabelButton } from "@/app/items/print-label-button";
 import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/current-user";
+import { formatItemDate } from "@/lib/item-dates";
 import { prisma } from "@/lib/prisma";
+import { canEditInventory } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 export default async function ItemDetailsPage({
@@ -11,15 +14,21 @@ export default async function ItemDetailsPage({
 }: {
   params: { id: string };
 }) {
-  const item = await prisma.item.findUnique({
-    where: { id: params.id },
-    include: { location: true, category: true },
-  });
+  const [user, item] = await Promise.all([
+    getCurrentUser(),
+    prisma.item.findUnique({
+      where: { id: params.id },
+      include: { location: true, category: true },
+    }),
+  ]);
   if (!item) {
     notFound();
   }
 
+  const canEdit = user ? canEditInventory(user.role) : false;
   const lowStock = !item.isManualOos && item.quantity <= item.threshold;
+  const received = formatItemDate(item.receivedAt);
+  const outOfStock = formatItemDate(item.outOfStockAt);
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,6 +69,18 @@ export default async function ItemDetailsPage({
           <dt className="text-muted-foreground">Category</dt>
           <dd>{item.category.name}</dd>
         </div>
+        {received ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Received</dt>
+            <dd>{received}</dd>
+          </div>
+        ) : null}
+        {outOfStock ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Out of stock</dt>
+            <dd>{outOfStock}</dd>
+          </div>
+        ) : null}
         {item.description ? (
           <div className="flex justify-between gap-3">
             <dt className="text-muted-foreground">Description</dt>
@@ -76,6 +97,12 @@ export default async function ItemDetailsPage({
         <p className="text-sm font-medium text-red-700">
           Low stock · threshold {item.threshold}
         </p>
+      ) : null}
+
+      {canEdit ? (
+        <Button asChild className="h-12">
+          <Link href={`/items/${item.id}/edit`}>Edit</Link>
+        </Button>
       ) : null}
 
       <PrintLabelButton

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AlertTriangle, PackagePlus, ScanLine } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/current-user";
+import { canEditInventory } from "@/lib/roles";
 import {
   Card,
   CardContent,
@@ -16,11 +18,14 @@ const stats = [
   { label: "Today", value: "0", detail: "adjustments" },
 ];
 
-export default function HomePage({
+export default async function HomePage({
   searchParams,
 }: {
   searchParams: { denied?: string };
 }) {
+  const user = await getCurrentUser();
+  const canEdit = user ? canEditInventory(user.role) : false;
+
   return (
     <div className="flex flex-col gap-6">
       {searchParams.denied === "settings" ? (
@@ -69,19 +74,21 @@ export default function HomePage({
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Button asChild size="lg" className="h-12">
+      <div className={canEdit ? "grid grid-cols-2 gap-3" : undefined}>
+        <Button asChild size="lg" className="h-12 w-full">
           <Link href="/scan">
             <ScanLine aria-hidden="true" />
             Scan
           </Link>
         </Button>
-        <Button asChild size="lg" variant="secondary" className="h-12">
-          <Link href="/items">
-            <PackagePlus aria-hidden="true" />
-            Add item
-          </Link>
-        </Button>
+        {canEdit ? (
+          <Button asChild size="lg" variant="secondary" className="h-12">
+            <Link href="/items">
+              <PackagePlus aria-hidden="true" />
+              Add item
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </div>
   );

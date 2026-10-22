@@ -41,10 +41,12 @@ export function ItemCatalog({
   items,
   categories,
   initialQuery = "",
+  canEdit = false,
 }: {
   items: CatalogItem[];
   categories: { id: string; name: string }[];
   initialQuery?: string;
+  canEdit?: boolean;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [categoryId, setCategoryId] = useState("all");
@@ -228,9 +230,16 @@ export function ItemCatalog({
                     </dd>
                   </div>
                 </dl>
-                <Button asChild variant="secondary" className="mt-4 h-12 w-full">
-                  <Link href={`/items/${item.id}`}>Details</Link>
-                </Button>
+                <div className={cn("mt-4 grid gap-2", canEdit && "grid-cols-2")}>
+                  {canEdit ? (
+                    <Button asChild variant="outline" className="h-12">
+                      <Link href={`/items/${item.id}/edit`}>Edit</Link>
+                    </Button>
+                  ) : null}
+                  <Button asChild variant="secondary" className="h-12">
+                    <Link href={`/items/${item.id}`}>Details</Link>
+                  </Button>
+                </div>
               </li>
             );
           })}

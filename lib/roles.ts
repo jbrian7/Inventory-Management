@@ -15,3 +15,7 @@ export function isRole(value: string): value is Role {
 export function canManageSettings(role: string) {
   return role === "ADMIN" || role === "MANAGER";
 }
+
+export function canEditInventory(role: string) {
+  return role === "ADMIN" || role === "MANAGER";
+}

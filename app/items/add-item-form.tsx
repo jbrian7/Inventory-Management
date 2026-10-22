@@ -1,8 +1,9 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useFormState } from "react-dom";
 
-import { Button } from "@/components/ui/button";
+import { createItem, type ItemFormState } from "@/app/items/actions";
+import { ItemForm, type ItemFormDefaults } from "@/app/items/item-form";
 import {
   Card,
   CardContent,
@@ -10,32 +11,36 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { todayDateInput } from "@/lib/item-dates";
 
-import { createItem, type CreateItemState } from "./actions";
-
-const initialState: CreateItemState = {};
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="h-12 w-full" disabled={pending}>
-      {pending ? "Saving…" : "Add item"}
-    </Button>
-  );
-}
+const initialState: ItemFormState = {};
 
 export function AddItemForm({
+  locations,
   categories,
 }: {
+  locations: { id: string; name: string }[];
   categories: { id: string; name: string }[];
 }) {
   const [state, formAction] = useFormState(createItem, initialState);
+  const defaultLocation =
+    locations.find((location) => location.name === "Stockroom")?.id ?? locations[0]?.id ?? "";
   const defaultCategory =
     categories.find((category) => category.name === "Stuffed Animals")?.id ??
-    categories[0]?.id;
+    categories[0]?.id ??
+    "";
+  const defaults: ItemFormDefaults = {
+    name: "",
+    sku: "",
+    description: "",
+    quantity: 0,
+    threshold: 5,
+    locationId: defaultLocation,
+    categoryId: defaultCategory,
+    receivedAt: todayDateInput(),
+    outOfStockAt: "",
+    isManualOos: false,
+  };
 
   return (
     <Card>
@@ -52,85 +57,15 @@ export function AddItemForm({
             <span className="font-mono">{state.qrCodeData}</span>
           </p>
         ) : null}
-        <form
+        <ItemForm
           key={state.qrCodeData ?? "new"}
           action={formAction}
-          className="flex flex-col gap-4"
-        >
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" required className="h-12" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="sku">SKU</Label>
-            <Input id="sku" name="sku" required className="h-12" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="description">Description</Label>
-            <Input id="description" name="description" className="h-12" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                name="quantity"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={0}
-                required
-                className="h-12"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="threshold">Low-stock threshold</Label>
-              <Input
-                id="threshold"
-                name="threshold"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={5}
-                required
-                className="h-12"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="location">Location</Label>
-            <Input
-              id="location"
-              name="location"
-              defaultValue="Stockroom"
-              required
-              className="h-12"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="categoryId">Category</Label>
-            <select
-              id="categoryId"
-              name="categoryId"
-              defaultValue={defaultCategory}
-              required
-              disabled={categories.length === 0}
-              className="h-12 rounded-md border border-input bg-transparent px-3 text-base"
-            >
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          {state.error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {state.error}
-            </p>
-          ) : null}
-          <SubmitButton />
-        </form>
+          state={state}
+          defaults={defaults}
+          locations={locations}
+          categories={categories}
+          submitLabel="Add item"
+        />
       </CardContent>
     </Card>
   );
