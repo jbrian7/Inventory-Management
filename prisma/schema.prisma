@@ -7,26 +7,54 @@ datasource db {
   provider = "sqlite"
 }
 
+model User {
+  id      String    @id @default(cuid())
+  name    String
+  pin     String    @unique
+  role    String    @default("STAFF") // ADMIN, MANAGER, STAFF
+  canScan Boolean   @default(true)
+  History History[]
+}
+
+model Location {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+}
+
 model Item {
-  id          String    @id @default(cuid())
-  name        String
-  sku         String    @unique
-  description String?
-  quantity    Int       @default(0)
-  threshold   Int       @default(5) // Low stock warning level
-  location    String    @default("Stockroom")
-  qrCodeData  String    @unique // The string encoded in the QR
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  History     History[]
+  id           String    @id @default(cuid())
+  name         String
+  sku          String    @unique
+  description  String?
+  quantity     Int       @default(0)
+  threshold    Int       @default(5) // Low stock warning level
+  locationId   String
+  location     Location  @relation(fields: [locationId], references: [id])
+  categoryId   String
+  category     Category  @relation(fields: [categoryId], references: [id])
+  qrCodeData   String    @unique // The string encoded in the QR
+  receivedAt   DateTime? @default(now())
+  outOfStockAt DateTime?
+  isManualOos  Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  History      History[]
 }
 
 model History {
   id        String   @id @default(cuid())
   itemId    String
   item      Item     @relation(fields: [itemId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
   action    String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM"
   amount    Int
-  user      String? // Optional: Track which staff member did it
   timestamp DateTime @default(now())
 }

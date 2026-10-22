@@ -14,13 +14,15 @@ export type StockResult = { item: StockItem } | { error: string };
 
 export type StockDirection = "ADD" | "REMOVE";
 
+const itemWithLocation = { location: true } as const;
+
 function toStockItem(item: {
   id: string;
   name: string;
   sku: string;
   quantity: number;
   threshold: number;
-  location: string;
+  location: { name: string };
   qrCodeData: string;
 }): StockItem {
   return {
@@ -29,7 +31,7 @@ function toStockItem(item: {
     sku: item.sku,
     quantity: item.quantity,
     threshold: item.threshold,
-    location: item.location,
+    location: item.location.name,
     qrCodeData: item.qrCodeData,
   };
 }
@@ -40,7 +42,10 @@ export async function findItemByQr(qrCodeData: string): Promise<StockResult> {
     return { error: "That QR code was empty." };
   }
 
-  const item = await prisma.item.findUnique({ where: { qrCodeData: code } });
+  const item = await prisma.item.findUnique({
+    where: { qrCodeData: code },
+    include: itemWithLocation,
+  });
   if (!item) {
     return { error: "No item matches this QR code." };
   }
@@ -60,7 +65,10 @@ export async function adjustStock(
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
-      const current = await tx.item.findUnique({ where: { qrCodeData: code } });
+      const current = await tx.item.findUnique({
+        where: { qrCodeData: code },
+        include: itemWithLocation,
+      });
       if (!current) {
         return null;
       }
@@ -82,6 +90,7 @@ export async function adjustStock(
             },
           },
         },
+        include: itemWithLocation,
       });
     });
 

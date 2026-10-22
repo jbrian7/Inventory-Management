@@ -27,8 +27,15 @@ function SubmitButton() {
   );
 }
 
-export function AddItemForm() {
+export function AddItemForm({
+  categories,
+}: {
+  categories: { id: string; name: string }[];
+}) {
   const [state, formAction] = useFormState(createItem, initialState);
+  const defaultCategory =
+    categories.find((category) => category.name === "Stuffed Animals")?.id ??
+    categories[0]?.id;
 
   return (
     <Card>
@@ -99,6 +106,23 @@ export function AddItemForm() {
               required
               className="h-12"
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="categoryId">Category</Label>
+            <select
+              id="categoryId"
+              name="categoryId"
+              defaultValue={defaultCategory}
+              required
+              disabled={categories.length === 0}
+              className="h-12 rounded-md border border-input bg-transparent px-3 text-base"
+            >
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
           {state.error ? (
             <p className="text-sm font-medium text-destructive" role="alert">

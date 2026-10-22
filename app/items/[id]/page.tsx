@@ -11,7 +11,10 @@ export default async function ItemDetailsPage({
 }: {
   params: { id: string };
 }) {
-  const item = await prisma.item.findUnique({ where: { id: params.id } });
+  const item = await prisma.item.findUnique({
+    where: { id: params.id },
+    include: { location: true, category: true },
+  });
   if (!item) {
     notFound();
   }
@@ -44,7 +47,11 @@ export default async function ItemDetailsPage({
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">Location</dt>
-          <dd>{item.location}</dd>
+          <dd>{item.location.name}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Category</dt>
+          <dd>{item.category.name}</dd>
         </div>
         {item.description ? (
           <div className="flex justify-between gap-3">

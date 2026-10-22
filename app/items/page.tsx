@@ -31,13 +31,27 @@ export default async function ItemsPage({
   const query = searchParams.q?.trim() ?? "";
   const sort = sortKey(searchParams.sort);
   const direction = searchParams.dir === "desc" ? "desc" : "asc";
-  const items = await prisma.item.findMany({
-    orderBy: { [sort]: direction },
-  });
+  const [items, categories] = await Promise.all([
+    prisma.item.findMany({
+      include: { location: true, category: true },
+      orderBy:
+        sort === "location"
+          ? { location: { name: direction } }
+          : { [sort]: direction },
+    }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
+  ]);
   const needle = query.toLowerCase();
   const visible = needle
     ? items.filter((item) =>
-        [item.name, item.sku, item.location, item.qrCodeData, item.description ?? ""]
+        [
+          item.name,
+          item.sku,
+          item.location.name,
+          item.category.name,
+          item.qrCodeData,
+          item.description ?? "",
+        ]
           .join(" ")
           .toLowerCase()
           .includes(needle)
@@ -53,7 +67,7 @@ export default async function ItemsPage({
         </p>
       </header>
 
-      <AddItemForm />
+      <AddItemForm categories={categories} />
 
       <form action="/items" className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
@@ -62,7 +76,7 @@ export default async function ItemsPage({
             id="q"
             name="q"
             defaultValue={query}
-            placeholder="Name, SKU, location, or QR code"
+            placeholder="Name, SKU, location, category, or QR code"
             className="h-12"
           />
         </div>
@@ -161,7 +175,15 @@ export default async function ItemsPage({
                       Location
                     </dt>
                     <dd className={lowStock ? "text-red-950" : undefined}>
-                      {item.location}
+                      {item.location.name}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className={lowStock ? "text-red-800" : "text-muted-foreground"}>
+                      Category
+                    </dt>
+                    <dd className={lowStock ? "text-red-950" : undefined}>
+                      {item.category.name}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">
