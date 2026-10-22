@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
 
 import { BottomNav } from "@/components/bottom-nav";
+import { SessionBar } from "@/components/session-bar";
+import { getCurrentUser } from "@/lib/current-user";
+import { canManageSettings, isRole } from "@/lib/roles";
+import { cn } from "@/lib/utils";
 
 import "./globals.css";
 
@@ -25,17 +30,25 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = headers().get("x-pathname") ?? "";
+  const onLogin = pathname === "/login";
+  const user = onLogin ? null : await getCurrentUser();
+  const showSettings = user ? canManageSettings(user.role) : false;
+
   return (
     <html lang="en">
       <body className={`${geistSans.className} antialiased`}>
         <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
-          <main className="flex-1 px-4 pb-24 pt-5">{children}</main>
-          <BottomNav />
+          <main className={cn("flex-1 px-4 pt-5", onLogin ? "pb-5" : "pb-24")}>
+            {user && isRole(user.role) ? <SessionBar name={user.name} role={user.role} /> : null}
+            {children}
+          </main>
+          {onLogin ? null : <BottomNav showSettings={showSettings} />}
         </div>
       </body>
     </html>

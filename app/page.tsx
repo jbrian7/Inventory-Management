@@ -16,9 +16,18 @@ const stats = [
   { label: "Today", value: "0", detail: "adjustments" },
 ];
 
-export default function HomePage() {
+export default function HomePage({
+  searchParams,
+}: {
+  searchParams: { denied?: string };
+}) {
   return (
     <div className="flex flex-col gap-6">
+      {searchParams.denied === "settings" ? (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm" role="status">
+          Settings is for admins and managers.
+        </p>
+      ) : null}
       <header className="space-y-1">
         <p className="text-sm font-medium text-muted-foreground">Zap Zone</p>
         <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
