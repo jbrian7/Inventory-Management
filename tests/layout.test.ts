@@ -17,6 +17,7 @@ test("tablet layout keeps the phone column and widens from the md breakpoint", (
   const layout = source("app/layout.tsx");
   assert.match(layout, /max-w-md/);
   assert.match(layout, /tablet:max-w-3xl/);
+  assert.match(source("tailwind.config.ts"), /min-width: 700px/);
   assert.match(source("tailwind.config.ts"), /min-height: 500px/);
   assert.match(layout, /lg:!max-w-6xl/);
   assert.match(layout, /safe-area-inset-bottom/);
@@ -63,5 +64,6 @@ test("scan adjustments confirm the new count and ignore a second tap", () => {
   assert.match(scanner, /Saving…/);
   assert.match(scanner, /h-16/);
   assert.match(scanner, /tablet:grid-cols-\[minmax\(0,1\.15fr\)_minmax\(18rem,0\.85fr\)\]/);
+  assert.match(scanner, /min-width: 700px/);
   assert.match(scanner, /min-height: 500px/);
 });

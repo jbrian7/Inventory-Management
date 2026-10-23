@@ -95,7 +95,7 @@ export function ItemCatalog({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="sticky top-0 z-30 -mx-4 border-b bg-background/95 px-4 py-3 backdrop-blur tablet:-mx-6 tablet:px-6 lg:!-mx-8 lg:!px-8">
+      <div className="sticky top-0 z-30 border-b bg-background/95 py-3 backdrop-blur">
         <div className="grid gap-3 tablet:grid-cols-2 lg:!grid-cols-4">
           <div className="flex flex-col gap-2 tablet:col-span-2 lg:col-span-2">
             <Label htmlFor="item-search">Search</Label>
@@ -221,15 +221,23 @@ function StatusText({ item }: { item: CatalogItem }) {
   return <span className="text-muted-foreground">In stock · threshold {item.threshold}</span>;
 }
 
-function ItemActions({ item, canEdit }: { item: CatalogItem; canEdit: boolean }) {
+function ItemActions({
+  item,
+  canEdit,
+  stacked = false,
+}: {
+  item: CatalogItem;
+  canEdit: boolean;
+  stacked?: boolean;
+}) {
   return (
-    <div className={cn("grid gap-2", canEdit && "grid-cols-2")}>
+    <div className={cn("grid gap-2", canEdit && !stacked && "grid-cols-2", stacked && "min-w-[8.5rem]")}>
       {canEdit ? (
-        <Button asChild variant="outline" className="h-11">
+        <Button asChild variant="outline" className="h-11 px-3">
           <Link href={`/items/${item.id}/edit`}>Edit</Link>
         </Button>
       ) : null}
-      <Button asChild variant="secondary" className="h-11">
+      <Button asChild variant="secondary" className="h-11 px-3">
         <Link href={`/items/${item.id}`}>Details</Link>
       </Button>
     </div>
@@ -239,12 +247,12 @@ function ItemActions({ item, canEdit }: { item: CatalogItem; canEdit: boolean })
 function CatalogTable({ items, canEdit }: { items: CatalogItem[]; canEdit: boolean }) {
   return (
     <div className="hidden overflow-x-auto rounded-xl border tablet:!block">
-      <table className="w-full min-w-[44rem] text-left text-sm">
+      <table className="w-full text-left text-sm">
         <caption className="sr-only">Inventory items</caption>
         <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th scope="col" className="px-3 py-3 font-medium">Name</th>
-            <th scope="col" className="px-3 py-3 font-medium">SKU</th>
+            <th scope="col" className="hidden px-3 py-3 font-medium lg:table-cell">SKU</th>
             <th scope="col" className="px-3 py-3 font-medium">On hand</th>
             <th scope="col" className="px-3 py-3 font-medium">Status</th>
             <th scope="col" className="px-3 py-3 font-medium">Location</th>
@@ -267,7 +275,7 @@ function CatalogTable({ items, canEdit }: { items: CatalogItem[]; canEdit: boole
                 <th scope="row" className="px-3 py-3 font-semibold">
                   {item.name}
                 </th>
-                <td className="px-3 py-3">{item.sku}</td>
+                <td className="hidden px-3 py-3 lg:table-cell">{item.sku}</td>
                 <td
                   className={cn(
                     "px-3 py-3 text-xl font-semibold tabular-nums",
@@ -281,8 +289,8 @@ function CatalogTable({ items, canEdit }: { items: CatalogItem[]; canEdit: boole
                 </td>
                 <td className="px-3 py-3">{item.locationName}</td>
                 <td className="hidden px-3 py-3 lg:table-cell">{item.categoryName}</td>
-                <td className="px-3 py-3">
-                  <ItemActions item={item} canEdit={canEdit} />
+                <td className="px-3 py-3 align-top">
+                  <ItemActions item={item} canEdit={canEdit} stacked />
                 </td>
               </tr>
             );

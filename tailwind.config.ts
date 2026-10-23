@@ -11,7 +11,7 @@ const config: Config = {
   theme: {
   	extend: {
   		screens: {
-  			tablet: { raw: "(min-width: 768px) and (min-height: 500px)" },
+  			tablet: { raw: "(min-width: 700px) and (min-height: 500px)" },
   		},
   		colors: {
   			background: 'hsl(var(--background))',

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { lookupQrCode, updateStock } from "./actions";
 
 const viewfinderId = "qr-viewfinder";
-const wideQuery = "(min-width: 768px) and (min-height: 500px)";
+const wideQuery = "(min-width: 700px) and (min-height: 500px)";
 
 function cameraMessage(error: unknown) {
   const name = error instanceof DOMException ? error.name : "";
