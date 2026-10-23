@@ -31,20 +31,21 @@ export async function HomeDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section aria-label="Inventory summary" className="grid grid-cols-3 gap-2">
+      <section aria-label="Inventory summary" className="grid grid-cols-3 gap-2 tablet:gap-4">
         {stats.map((stat) => (
           <Card key={stat.label}>
-            <CardHeader className="space-y-1 p-3">
+            <CardHeader className="space-y-1 p-3 tablet:p-4">
               <CardDescription className="text-xs">{stat.label}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{stat.value}</CardTitle>
+              <CardTitle className="text-2xl tabular-nums tablet:text-3xl">{stat.value}</CardTitle>
             </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <p className="text-[11px] leading-snug text-muted-foreground">{stat.detail}</p>
+            <CardContent className="p-3 pt-0 tablet:p-4 tablet:pt-0">
+              <p className="text-[11px] leading-snug text-muted-foreground tablet:text-xs">{stat.detail}</p>
             </CardContent>
           </Card>
         ))}
       </section>
 
+      <div className="grid items-start gap-6 tablet:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -75,6 +76,10 @@ export async function HomeDashboard() {
                       </span>
                     </span>
                     <span className="text-red-800">
+                      {item.quantity < item.threshold
+                        ? `Short ${item.threshold - item.quantity}`
+                        : "At threshold"}
+                      {" · "}
                       Threshold {item.threshold} · {item.location}
                     </span>
                   </Link>
@@ -118,6 +123,7 @@ export async function HomeDashboard() {
           </ul>
         )}
       </section>
+      </div>
     </div>
   );
 }

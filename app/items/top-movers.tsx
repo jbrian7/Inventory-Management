@@ -14,12 +14,12 @@ export async function TopMovers() {
       {movers.length === 0 ? (
         <p className="text-sm text-muted-foreground">No removals in the last 30 days.</p>
       ) : (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <div className="flex gap-2 overflow-x-auto pb-1 tablet:!grid tablet:grid-cols-4 tablet:!overflow-visible">
           {movers.map((item) => (
             <Link
               key={item.id}
               href={`/items/${item.id}`}
-              className="w-36 shrink-0 rounded-xl border bg-card p-3 shadow-sm"
+              className="w-36 shrink-0 rounded-xl border bg-card p-3 shadow-sm tablet:w-auto"
             >
               <p className="truncate text-sm font-semibold">{item.name}</p>
               <p className="truncate text-xs text-muted-foreground">{item.sku}</p>

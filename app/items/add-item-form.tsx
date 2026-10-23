@@ -14,15 +14,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { todayDateInput } from "@/lib/item-dates";
+import { cn } from "@/lib/utils";
 
 const initialState: ItemFormState = {};
 
 export function AddItemButton({
   locations,
   categories,
+  className,
 }: {
   locations: { id: string; name: string }[];
   categories: { id: string; name: string }[];
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -31,7 +34,7 @@ export function AddItemButton({
     <>
       <Button
         type="button"
-        className="shrink-0"
+        className={cn("h-12 shrink-0", className)}
         onClick={() => {
           setFormKey((key) => key + 1);
           setOpen(true);

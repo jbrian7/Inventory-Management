@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { BottomNav } from "@/components/bottom-nav";
+import { BottomNav, SideNav } from "@/components/bottom-nav";
 import { SessionBar } from "@/components/session-bar";
 import { getCurrentUser } from "@/lib/current-user";
 import { canManageSettings, isRole } from "@/lib/roles";
@@ -47,12 +47,27 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.className} antialiased`}>
-        <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
-          <main className={cn("flex-1 px-4 pt-5", onLogin ? "pb-5" : "pb-24")}>
-            {user && isRole(user.role) ? <SessionBar name={user.name} role={user.role} /> : null}
-            {children}
-          </main>
-          {onLogin ? null : <BottomNav showSettings={showSettings} />}
+        <div
+          className={cn(
+            "mx-auto flex min-h-dvh w-full flex-col bg-background",
+            onLogin ? "max-w-md" : "max-w-md tablet:max-w-3xl lg:!max-w-6xl lg:flex-row"
+          )}
+        >
+          {onLogin ? null : <SideNav showSettings={showSettings} />}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <main
+              className={cn(
+                "flex-1 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] tablet:px-6 lg:!px-8",
+                onLogin
+                  ? "pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+                  : "pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-8 lg:pr-[max(2rem,env(safe-area-inset-right))]"
+              )}
+            >
+              {user && isRole(user.role) ? <SessionBar name={user.name} role={user.role} /> : null}
+              {children}
+            </main>
+            {onLogin ? null : <BottomNav showSettings={showSettings} />}
+          </div>
         </div>
       </body>
     </html>

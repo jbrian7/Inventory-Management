@@ -9,7 +9,7 @@ export function SessionBar({ name, role }: { name: string; role: Role }) {
         {name} · {roleLabels[role]}
       </p>
       <form action={logout}>
-        <Button type="submit" variant="ghost" className="h-10 px-3">
+        <Button type="submit" variant="ghost" className="h-11 px-3">
           Sign out
         </Button>
       </form>

@@ -44,7 +44,8 @@ export default async function ItemDetailsPage({
   const outOfStock = formatItemDate(item.outOfStockAt);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid items-start gap-6 tablet:grid-cols-2">
+      <div className="flex flex-col gap-6">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">Item details</p>
         <h1 className="text-2xl font-semibold tracking-tight">{item.name}</h1>
@@ -120,6 +121,13 @@ export default async function ItemDetailsPage({
 
       {canEdit ? <StockCorrection itemId={item.id} quantity={item.quantity} /> : null}
 
+      <PrintLabelButton itemId={item.id} />
+
+      <Button asChild variant="secondary" className="h-12">
+        <Link href="/items">Back to items</Link>
+      </Button>
+      </div>
+
       <section className="flex flex-col gap-2" aria-label="Movements">
         <h2 className="text-base font-semibold">Movements</h2>
         {movements.length === 0 ? (
@@ -140,12 +148,6 @@ export default async function ItemDetailsPage({
           </ul>
         )}
       </section>
-
-      <PrintLabelButton itemId={item.id} />
-
-      <Button asChild variant="secondary" className="h-12">
-        <Link href="/items">Back to items</Link>
-      </Button>
     </div>
   );
 }

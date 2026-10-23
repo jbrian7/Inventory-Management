@@ -70,7 +70,7 @@ export default async function HistoryPage({
         </p>
       </header>
 
-      <form method="get" className="grid gap-3" aria-label="Filter movements">
+      <form method="get" className="grid gap-3 tablet:grid-cols-2 xl:!grid-cols-3" aria-label="Filter movements">
         <div className="flex flex-col gap-2">
           <Label htmlFor="history-item">Item</Label>
           <select id="history-item" name="item" defaultValue={query.itemId} className={selectClass}>
@@ -110,7 +110,7 @@ export default async function HistoryPage({
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 tablet:col-span-2 xl:!col-span-1">
           <div className="flex flex-col gap-2">
             <Label htmlFor="history-from">From</Label>
             <Input
@@ -126,14 +126,16 @@ export default async function HistoryPage({
             <Input id="history-to" name="to" type="date" defaultValue={query.to} className="h-12" />
           </div>
         </div>
-        <Button type="submit" className="h-12">
-          Apply filters
-        </Button>
-        {active ? (
-          <Button asChild variant="secondary" className="h-12">
-            <Link href="/history">Clear filters</Link>
+        <div className="flex flex-col gap-3 sm:flex-row tablet:col-span-2 xl:!col-span-3">
+          <Button type="submit" className="h-12 sm:min-w-40">
+            Apply filters
           </Button>
-        ) : null}
+          {active ? (
+            <Button asChild variant="secondary" className="h-12 sm:min-w-40">
+              <Link href="/history">Clear filters</Link>
+            </Button>
+          ) : null}
+        </div>
       </form>
 
       {query.error ? (
@@ -151,7 +153,42 @@ export default async function HistoryPage({
           <p className="text-sm text-muted-foreground">
             {result.window.start}–{result.window.end} of {result.total}
           </p>
-          <ul className="rounded-xl border bg-card px-4">
+          <div className="hidden overflow-x-auto rounded-xl border tablet:!block">
+            <table className="w-full min-w-[40rem] text-left text-sm">
+              <caption className="sr-only">Stock movements</caption>
+              <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-3 font-medium">Item</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Action</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Change</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Staff</th>
+                  <th scope="col" className="px-3 py-3 font-medium">When</th>
+                  <th scope="col" className="px-3 py-3 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.map((entry) => (
+                  <tr key={entry.id} className="border-b last:border-b-0">
+                    <th scope="row" className="px-3 py-3 font-medium">
+                      {entry.itemId ? (
+                        <Link href={`/items/${entry.itemId}`} className="underline-offset-2 hover:underline">
+                          {entry.itemName}
+                        </Link>
+                      ) : (
+                        entry.itemName
+                      )}
+                    </th>
+                    <td className="px-3 py-3">{entry.title}</td>
+                    <td className="px-3 py-3">{entry.quantityLine}</td>
+                    <td className="px-3 py-3">{entry.actor}</td>
+                    <td className="px-3 py-3">{entry.time}</td>
+                    <td className="px-3 py-3">{entry.reason ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="rounded-xl border bg-card px-4 tablet:!hidden">
             {result.rows.map((entry) => (
               <li key={entry.id} className="border-b py-3 text-sm last:border-b-0">
                 <div className="flex items-baseline justify-between gap-3">
