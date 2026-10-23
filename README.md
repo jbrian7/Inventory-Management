@@ -9,7 +9,7 @@ A lightweight, mobile-first inventory management system designed specifically fo
 *   **Built-in QR Scanning:** Uses the device's native camera directly in the browser—no dedicated scanner hardware required.
 *   **Quick Stock Adjustments:** Rapidly check-in or check-out inventory with large, easy-to-use buttons.
 *   **Low-Stock Alerts:** Set custom thresholds for items to visually indicate when it's time to reorder.
-*   **Local Network Printing:** Integrates with a Raspberry Pi to automatically generate and print QR code labels to a thermal printer over your local network.
+*   **Local Network Printing:** A signed-in user prints a label through the Next.js server. The server sends it to a Raspberry Pi on the store LAN. The printer token stays on the server.
 
 ## 🛠️ Tech Stack
 
@@ -68,7 +68,9 @@ This repository contains two main components: the Next.js web application and th
 
 ### Part 2: Raspberry Pi Print Server Setup
 
-*Note: Ensure your thermal printer is connected via USB to the Raspberry Pi and properly configured in CUPS if required by your specific printer model.*
+Run the Next.js app on the store LAN. It calls the Pi. The iPad does not call the Pi, and the printer token is not stored in the browser. Details are in `pi-print-server/README.md`.
+
+*Note: Ensure your thermal printer is connected to the Raspberry Pi and configured in CUPS if you use the default `lp` driver. No new printer is required.*
 
 1. **Move to the print server directory:**
    ```bash
@@ -80,19 +82,26 @@ This repository contains two main components: the Next.js web application and th
    npm install
    ```
 
-3. **Start the print server:**
+3. **Start the print server with a token:**
    ```bash
+   export PRINT_TOKEN="$(openssl rand -hex 32)"
+   export LP_DEST=ZapZone
    node server.js
    ```
-   *Tip: Use a process manager like PM2 (`npm install -g pm2` then `pm2 start server.js`) to keep the print server running automatically on the Pi's startup.*
+   Without `LP_DEST`, a request is a preview: the response has `printed: false`. *Tip: Use PM2 (`npm install -g pm2` then `pm2 start server.js --name zap-print`) to keep the print server running.*
 
-4. **Connect App to Printer:**
-   Open the settings page in your deployed Web App and enter the local IP address of your Raspberry Pi (e.g., `http://192.168.1.50:3001`).
+4. **Point the app server at the Pi:**
+   Set these in the Next.js environment, using the same token:
+   ```bash
+   PRINT_SERVER_URL="http://192.168.1.50:3001"
+   PRINT_SERVER_TOKEN="<same value as PRINT_TOKEN>"
+   ```
+   Admins and managers can open Settings to see whether the Pi is reachable, whether a CUPS queue is configured, and to print a test label. Allow port 3001 only from the app server.
 
 ## 📱 Usage
 
 1. **Add Items:** Navigate to the "Items" tab to add a new novelty. The system will automatically generate a unique QR code payload.
-2. **Print Labels:** Select an item and click "Print Label" to send a print job to the Raspberry Pi.
+2. **Print Labels:** Open an item and click "Print Label". The app server sends the stored QR payload to the Pi. If the printer queue is not configured, the page says the label was not printed.
 3. **Scan & Adjust:** Attach the printed label to the item's bin. Staff can navigate to the "Scan" tab, point their iPad camera at the label, and instantly add or deduct stock.
 
 ## 📄 License

@@ -141,9 +141,7 @@ export default async function ItemDetailsPage({
         )}
       </section>
 
-      <PrintLabelButton
-        item={{ name: item.name, sku: item.sku, qrCodeData: item.qrCodeData }}
-      />
+      <PrintLabelButton itemId={item.id} />
 
       <Button asChild variant="secondary" className="h-12">
         <Link href="/items">Back to items</Link>

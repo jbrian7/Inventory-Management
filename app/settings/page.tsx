@@ -13,6 +13,7 @@ import {
 import { UserManager } from "@/app/settings/user-manager";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
+import { probePrinter } from "@/lib/print-client";
 import { prisma } from "@/lib/prisma";
 import { canManageSettings, isRole } from "@/lib/roles";
 
@@ -25,13 +26,14 @@ export default async function SettingsPage() {
     redirect("/?denied=settings");
   }
 
-  const [users, locations, categories] = await Promise.all([
+  const [users, locations, categories, diagnostics] = await Promise.all([
     prisma.user.findMany({
       select: { id: true, name: true, role: true, canScan: true, active: true },
       orderBy: [{ role: "asc" }, { name: "asc" }],
     }),
     prisma.location.findMany({ orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    probePrinter(),
   ]);
 
   return (
@@ -39,7 +41,7 @@ export default async function SettingsPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Staff, rooms, and categories for Zap Zone.
+          Staff, rooms, categories, and the label printer.
         </p>
       </header>
 
@@ -86,7 +88,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <PrinterForm />
+      <PrinterForm diagnostics={diagnostics} />
     </div>
   );
 }

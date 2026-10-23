@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts",
+    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/print.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
