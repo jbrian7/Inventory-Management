@@ -4,16 +4,22 @@ import cuid from "cuid";
 import { revalidatePath } from "next/cache";
 
 import { getCurrentUser } from "@/lib/current-user";
+import { createStockedItem, saveItemDetails } from "@/lib/item-edit";
 import { parseDateInput, todayDateInput } from "@/lib/item-dates";
-import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { inventoryAccessError } from "@/lib/access";
+import { correctStock, parseQuantity, parseRequestId } from "@/lib/stock";
 
 export type ItemFormState = {
   error?: string;
   saved?: boolean;
   name?: string;
   qrCodeData?: string;
+};
+
+export type CorrectionState = {
+  error?: string;
+  saved?: boolean;
 };
 
 function wholeNumber(value: FormDataEntryValue | null, fallback: number) {
@@ -45,13 +51,16 @@ type ItemFields = {
   isManualOos: boolean;
 };
 
-function readItemFields(formData: FormData): { error: string } | { fields: ItemFields } {
+function readItemFields(
+  formData: FormData,
+  options: { requireQuantity: boolean }
+): { error: string } | { fields: ItemFields } {
   const name = String(formData.get("name") ?? "").trim();
   const sku = String(formData.get("sku") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const locationId = String(formData.get("locationId") ?? "").trim();
   const categoryId = String(formData.get("categoryId") ?? "").trim();
-  const quantity = wholeNumber(formData.get("quantity"), 0);
+  const quantity = options.requireQuantity ? wholeNumber(formData.get("quantity"), 0) : 0;
   const threshold = wholeNumber(formData.get("threshold"), 5);
   const receivedRaw = String(formData.get("receivedAt") ?? "").trim();
   const outRaw = String(formData.get("outOfStockAt") ?? "").trim();
@@ -66,7 +75,7 @@ function readItemFields(formData: FormData): { error: string } | { fields: ItemF
   if (!categoryId) {
     return { error: "Choose a category." };
   }
-  if (!Number.isInteger(quantity) || quantity < 0) {
+  if (options.requireQuantity && (!Number.isInteger(quantity) || quantity < 0)) {
     return { error: "Quantity must be a whole number of 0 or more." };
   }
   if (!Number.isInteger(threshold) || threshold < 0) {
@@ -116,12 +125,6 @@ async function relationsExist(locationId: string, categoryId: string) {
   return null;
 }
 
-function knownError(error: unknown) {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
-  );
-}
-
 export async function createItem(
   _previous: ItemFormState,
   formData: FormData
@@ -131,9 +134,17 @@ export async function createItem(
     return { error: "Only admins and managers can add items." };
   }
 
-  const parsed = readItemFields(formData);
+  const parsed = readItemFields(formData, { requireQuantity: true });
   if ("error" in parsed) {
     return { error: parsed.error };
+  }
+  const requestId = parseRequestId(formData.get("requestId"));
+  if (!requestId) {
+    return { error: "Submit this item again." };
+  }
+  const quantity = parseQuantity(parsed.fields.quantity);
+  if (quantity === null) {
+    return { error: "Quantity must be a whole number of 0 or more." };
   }
   const missing = await relationsExist(parsed.fields.locationId, parsed.fields.categoryId);
   if (missing) {
@@ -142,31 +153,19 @@ export async function createItem(
 
   const id = cuid();
   const qrCodeData = `ZAP-ITEM-${id}`;
-
-  try {
-    await prisma.item.create({
-      data: {
-        id,
-        ...parsed.fields,
-        qrCodeData,
-        History: {
-          create: {
-            action: "NEW_ITEM",
-            amount: parsed.fields.quantity,
-            userId: user.id,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    if (knownError(error)) {
-      return { error: "That SKU is already in use." };
-    }
-    throw error;
+  const created = await createStockedItem(user, {
+    ...parsed.fields,
+    quantity,
+    id,
+    qrCodeData,
+    requestId,
+  });
+  if ("error" in created) {
+    return { error: created.error };
   }
 
   revalidatePath("/items");
-  return { name: parsed.fields.name, qrCodeData };
+  return { name: created.name, qrCodeData: created.qrCodeData };
 }
 
 export async function updateItem(
@@ -184,7 +183,7 @@ export async function updateItem(
     return { error: "That item no longer exists." };
   }
 
-  const parsed = readItemFields(formData);
+  const parsed = readItemFields(formData, { requireQuantity: false });
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -193,20 +192,35 @@ export async function updateItem(
     return { error: missing };
   }
 
-  try {
-    await prisma.item.update({
-      where: { id },
-      data: parsed.fields,
-    });
-  } catch (error) {
-    if (knownError(error)) {
-      return { error: "That SKU is already in use." };
-    }
-    throw error;
+  const saved = await saveItemDetails(user, id, parsed.fields);
+  if ("error" in saved) {
+    return { error: saved.error };
   }
 
   revalidatePath("/items");
   revalidatePath(`/items/${id}`);
   revalidatePath(`/items/${id}/edit`);
-  return { saved: true, name: parsed.fields.name };
+  return { saved: true, name: saved.name };
+}
+
+export async function correctItemQuantity(
+  _previous: CorrectionState,
+  formData: FormData
+): Promise<CorrectionState> {
+  const user = await getCurrentUser();
+  const result = await correctStock(
+    String(formData.get("id") ?? ""),
+    formData.get("quantity"),
+    formData.get("expectedQuantity"),
+    formData.get("reason"),
+    formData.get("requestId"),
+    user
+  );
+  if ("error" in result) {
+    return { error: result.error };
+  }
+  revalidatePath("/items");
+  revalidatePath(`/items/${result.item.id}`);
+  revalidatePath(`/items/${result.item.id}/edit`);
+  return { saved: true };
 }

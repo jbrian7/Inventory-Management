@@ -60,12 +60,16 @@ model Item {
 }
 
 model History {
-  id        String   @id @default(cuid())
-  itemId    String
-  item      Item     @relation(fields: [itemId], references: [id])
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  action    String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM"
-  amount    Int
-  timestamp DateTime @default(now())
+  id             String   @id @default(cuid())
+  itemId         String
+  item           Item     @relation(fields: [itemId], references: [id])
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+  action         String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM"
+  amount         Int
+  quantityBefore Int?
+  quantityAfter  Int?
+  reason         String?
+  requestId      String?  @unique
+  timestamp      DateTime @default(now())
 }

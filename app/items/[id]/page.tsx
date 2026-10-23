@@ -2,9 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PrintLabelButton } from "@/app/items/print-label-button";
+import { StockCorrection } from "@/app/items/stock-correction";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/current-user";
 import { formatItemDate } from "@/lib/item-dates";
+import {
+  formatMovementTime,
+  movementActorLabel,
+  movementQuantityLine,
+  movementTitle,
+} from "@/lib/movement";
 import { prisma } from "@/lib/prisma";
 import { canEditInventory } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -14,11 +21,17 @@ export default async function ItemDetailsPage({
 }: {
   params: { id: string };
 }) {
-  const [user, item] = await Promise.all([
+  const [user, item, movements] = await Promise.all([
     getCurrentUser(),
     prisma.item.findUnique({
       where: { id: params.id },
       include: { location: true, category: true },
+    }),
+    prisma.history.findMany({
+      where: { itemId: params.id },
+      include: { user: { select: { name: true } } },
+      orderBy: { timestamp: "desc" },
+      take: 30,
     }),
   ]);
   if (!item) {
@@ -104,6 +117,29 @@ export default async function ItemDetailsPage({
           <Link href={`/items/${item.id}/edit`}>Edit</Link>
         </Button>
       ) : null}
+
+      {canEdit ? <StockCorrection itemId={item.id} quantity={item.quantity} /> : null}
+
+      <section className="flex flex-col gap-2" aria-label="Movements">
+        <h2 className="text-base font-semibold">Movements</h2>
+        {movements.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No movements yet.</p>
+        ) : (
+          <ul className="rounded-xl border bg-card px-4">
+            {movements.map((entry) => (
+              <li key={entry.id} className="border-b py-3 text-sm last:border-b-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-medium">{movementTitle(entry)}</p>
+                  <p className="text-muted-foreground">{movementActorLabel(entry.user)}</p>
+                </div>
+                <p className="text-muted-foreground">{movementQuantityLine(entry)}</p>
+                {entry.reason ? <p>{entry.reason}</p> : null}
+                <p className="text-xs text-muted-foreground">{formatMovementTime(entry.timestamp)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <PrintLabelButton
         item={{ name: item.name, sku: item.sku, qrCodeData: item.qrCodeData }}

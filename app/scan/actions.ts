@@ -18,13 +18,16 @@ export async function lookupQrCode(qrCodeData: string): Promise<StockResult> {
 export async function updateStock(
   qrCodeData: string,
   direction: StockDirection,
-  amount: number
+  amount: number,
+  requestId: string,
+  reason?: string
 ): Promise<StockResult> {
   const user = await getCurrentUser();
-  const result = await adjustStock(qrCodeData, direction, amount, user);
+  const result = await adjustStock(qrCodeData, direction, amount, user, requestId, reason);
   if ("item" in result) {
     revalidatePath("/items");
     revalidatePath("/");
+    revalidatePath(`/items/${result.item.id}`);
   }
   return result;
 }

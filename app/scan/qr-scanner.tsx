@@ -43,6 +43,7 @@ export function QrScanner() {
   const [notice, setNotice] = useState<string | null>(null);
   const [amount, setAmount] = useState("1");
   const [pending, setPending] = useState(false);
+  const requestRef = useRef<string | null>(null);
 
   useEffect(() => {
     const scanner = new Html5Qrcode(viewfinderId, false);
@@ -149,19 +150,28 @@ export function QrScanner() {
   }
 
   async function onAdjust(direction: StockDirection) {
-    if (!item) {
+    if (!item || pending) {
       return;
     }
+    const requestId = requestRef.current ?? crypto.randomUUID();
+    requestRef.current = requestId;
     const parsed = Number(amount);
     setPending(true);
-    const result = await updateStock(item.qrCodeData, direction, parsed);
-    setPending(false);
-    if ("error" in result) {
-      setNotice(result.error);
-      return;
+    try {
+      const result = await updateStock(item.qrCodeData, direction, parsed, requestId);
+      if ("error" in result) {
+        requestRef.current = null;
+        setNotice(result.error);
+        return;
+      }
+      requestRef.current = null;
+      setItem(result.item);
+      setNotice(null);
+    } catch {
+      setNotice("The change did not finish. Submit it again.");
+    } finally {
+      setPending(false);
     }
-    setItem(result.item);
-    setNotice(null);
   }
 
   const lowStock = item ? item.quantity <= item.threshold : false;

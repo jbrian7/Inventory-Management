@@ -34,6 +34,7 @@ export function ItemForm({
   locations,
   categories,
   submitLabel,
+  lockQuantity = false,
 }: {
   action: (payload: FormData) => void;
   state: ItemFormState;
@@ -41,10 +42,12 @@ export function ItemForm({
   locations: { id: string; name: string }[];
   categories: { id: string; name: string }[];
   submitLabel: string;
+  lockQuantity?: boolean;
 }) {
   const [receivedAt, setReceivedAt] = useState(defaults.receivedAt);
   const [outOfStockAt, setOutOfStockAt] = useState(defaults.outOfStockAt);
   const [manualOos, setManualOos] = useState(defaults.isManualOos);
+  const [requestId] = useState(() => crypto.randomUUID());
   const ready = locations.length > 0 && categories.length > 0;
 
   function onManualOos(checked: boolean) {
@@ -55,6 +58,7 @@ export function ItemForm({
   return (
     <form action={action} className="flex flex-col gap-4">
       {defaults.id ? <input type="hidden" name="id" value={defaults.id} /> : null}
+      <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="isManualOos" value={manualOos ? "true" : "false"} />
       <div className="flex flex-col gap-2">
         <Label htmlFor="name">Name</Label>
@@ -76,16 +80,22 @@ export function ItemForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="quantity">Quantity</Label>
-          <Input
-            id="quantity"
-            name="quantity"
-            type="number"
-            min={0}
-            step={1}
-            required
-            defaultValue={defaults.quantity}
-            className="h-12"
-          />
+          {lockQuantity ? (
+            <p id="quantity" className="flex h-12 items-center text-2xl font-semibold tabular-nums">
+              {defaults.quantity}
+            </p>
+          ) : (
+            <Input
+              id="quantity"
+              name="quantity"
+              type="number"
+              min={0}
+              step={1}
+              required
+              defaultValue={defaults.quantity}
+              className="h-12"
+            />
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="threshold">Low-stock threshold</Label>

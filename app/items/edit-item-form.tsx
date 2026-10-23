@@ -29,7 +29,7 @@ export function EditItemForm({
     <Card id="edit">
       <CardHeader>
         <CardTitle className="text-base">Edit item</CardTitle>
-        <CardDescription>Location, category, dates, and stock status.</CardDescription>
+        <CardDescription>Name, location, category, and dates.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {state.saved ? (
@@ -44,7 +44,11 @@ export function EditItemForm({
           locations={locations}
           categories={categories}
           submitLabel="Save changes"
+          lockQuantity
         />
+        <p className="text-sm text-muted-foreground">
+          Saving does not change on-hand quantity. Correct stock from the item details page.
+        </p>
       </CardContent>
     </Card>
   );
