@@ -1,12 +1,7 @@
-const zone = "America/New_York";
+import { businessDateInput } from "@/lib/business-time";
 
 export function todayDateInput(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: zone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  return businessDateInput(now);
 }
 
 export function toDateInput(value: Date | null | undefined) {

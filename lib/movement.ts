@@ -1,4 +1,6 @@
-const zone = "America/New_York";
+import { businessZone } from "@/lib/business-time";
+
+const zone = businessZone;
 
 export const stockActions = ["ADD", "REMOVE", "AUDIT", "NEW_ITEM"] as const;
 
@@ -12,6 +14,13 @@ export function movementActorLabel(user: { name: string } | null | undefined) {
   const name = user?.name?.trim();
   return name || "Unknown";
 }
+
+export const actionFilterLabels: Record<StockAction, string> = {
+  ADD: "Added",
+  REMOVE: "Deducted",
+  AUDIT: "Corrected",
+  NEW_ITEM: "Received",
+};
 
 export function movementTitle(entry: { action: string; amount: number }) {
   if (entry.action === "ADD") {

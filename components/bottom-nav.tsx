@@ -2,20 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
+import { History, LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
 
+import { navColumns, primaryNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-const items = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/scan", label: "Scan", icon: ScanLine },
-  { href: "/items", label: "Items", icon: Package },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const icons = {
+  "/": LayoutDashboard,
+  "/scan": ScanLine,
+  "/items": Package,
+  "/history": History,
+  "/settings": Settings,
+} as const;
 
 export function BottomNav({ showSettings }: { showSettings: boolean }) {
   const pathname = usePathname();
-  const visible = showSettings ? items : items.filter((item) => item.href !== "/settings");
+  const visible = primaryNav(showSettings);
 
   return (
     <nav
@@ -25,15 +27,12 @@ export function BottomNav({ showSettings }: { showSettings: boolean }) {
       <ul
         className={cn(
           "mx-auto grid max-w-md pb-[env(safe-area-inset-bottom)]",
-          showSettings ? "grid-cols-4" : "grid-cols-3"
+          navColumns(visible.length)
         )}
       >
         {visible.map((item) => {
-          const active =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
-          const Icon = item.icon;
+          const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const Icon = icons[item.href as keyof typeof icons];
 
           return (
             <li key={item.href}>
@@ -41,7 +40,7 @@ export function BottomNav({ showSettings }: { showSettings: boolean }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium",
+                  "flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium",
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
