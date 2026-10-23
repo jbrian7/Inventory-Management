@@ -8,12 +8,23 @@ datasource db {
 }
 
 model User {
-  id      String    @id @default(cuid())
-  name    String
-  pin     String    @unique
-  role    String    @default("STAFF") // ADMIN, MANAGER, STAFF
-  canScan Boolean   @default(true)
-  History History[]
+  id             String    @id @default(cuid())
+  name           String
+  pinHash        String
+  pinLookup      String    @unique
+  role           String    @default("STAFF") // ADMIN, MANAGER, STAFF
+  canScan        Boolean   @default(true)
+  active         Boolean   @default(true)
+  sessionVersion Int       @default(0)
+  History        History[]
+}
+
+// Persistent failed-login counters. Keyed by client address, not by PIN.
+model LoginThrottle {
+  key         String    @id
+  failures    Int       @default(0)
+  windowStart DateTime
+  lockedUntil DateTime?
 }
 
 model Location {

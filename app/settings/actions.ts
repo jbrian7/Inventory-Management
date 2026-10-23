@@ -6,8 +6,8 @@ import { redirect } from "next/navigation";
 import { clearSession, getCurrentUser } from "@/lib/current-user";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isRole, type Role } from "@/lib/roles";
-import { guardStaffChange } from "@/lib/staff-rules";
+import type { Role } from "@/lib/roles";
+import { createStaffMember, removeStaffMember, updateStaffMember } from "@/lib/staff-admin";
 
 export type ActionState = {
   error?: string;
@@ -31,80 +31,44 @@ function duplicateName(error: unknown) {
 }
 
 export async function createUser(_previous: ActionState, formData: FormData): Promise<ActionState> {
-  await requireManager();
-  const name = cleanName(formData.get("name"));
-  const pin = cleanName(formData.get("pin"));
-  const role = cleanName(formData.get("role"));
-  if (!name) {
-    return { error: "Name is required." };
+  const actor = await requireManager();
+  const result = await createStaffMember(actor, {
+    name: cleanName(formData.get("name")),
+    pin: cleanName(formData.get("pin")),
+    role: cleanName(formData.get("role")),
+  });
+  if ("error" in result && result.error) {
+    return { error: result.error };
   }
-  if (!/^\d{4}$/.test(pin)) {
-    return { error: "PIN must be 4 digits." };
-  }
-  if (!isRole(role)) {
-    return { error: "Choose Admin, Manager, or Staff." };
-  }
-
-  try {
-    await prisma.user.create({ data: { name, pin, role, canScan: true } });
-  } catch (error) {
-    if (duplicateName(error)) {
-      return { error: "That PIN is already in use." };
-    }
-    throw error;
-  }
-
   revalidatePath("/settings");
   return { saved: true };
 }
 
 export async function updateUser(_previous: ActionState, formData: FormData): Promise<ActionState> {
-  await requireManager();
-  const id = cleanName(formData.get("id"));
-  const name = cleanName(formData.get("name"));
-  const pin = cleanName(formData.get("pin"));
-  const role = cleanName(formData.get("role"));
-  if (!name) {
-    return { error: "Name is required." };
+  const actor = await requireManager();
+  const result = await updateStaffMember(actor, {
+    id: cleanName(formData.get("id")),
+    name: cleanName(formData.get("name")),
+    pin: cleanName(formData.get("pin")),
+    role: cleanName(formData.get("role")),
+    active: formData.get("active") === "true",
+    canScan: formData.get("canScan") === "true",
+  });
+  if ("error" in result && result.error) {
+    return { error: result.error };
   }
-  if (!/^\d{4}$/.test(pin)) {
-    return { error: "PIN must be 4 digits." };
-  }
-  if (!isRole(role)) {
-    return { error: "Choose Admin, Manager, or Staff." };
-  }
-
-  const users = await prisma.user.findMany({ select: { id: true, role: true } });
-  const blocked = guardStaffChange({ users, targetId: id, nextRole: role });
-  if (blocked) {
-    return { error: blocked };
-  }
-
-  try {
-    await prisma.user.update({ where: { id }, data: { name, pin, role } });
-  } catch (error) {
-    if (duplicateName(error)) {
-      return { error: "That PIN is already in use." };
-    }
-    throw error;
-  }
-
   revalidatePath("/settings");
   return { saved: true };
 }
 
 export async function removeUser(_previous: ActionState, formData: FormData): Promise<ActionState> {
   const actor = await requireManager();
-  const id = cleanName(formData.get("id"));
-  const users = await prisma.user.findMany({ select: { id: true, role: true } });
-  const blocked = guardStaffChange({ users, targetId: id, remove: true });
-  if (blocked) {
-    return { error: blocked };
+  const result = await removeStaffMember(actor, cleanName(formData.get("id")));
+  if ("error" in result && result.error) {
+    return { error: result.error };
   }
-
-  await prisma.user.delete({ where: { id } });
   revalidatePath("/settings");
-  if (actor.id === id) {
+  if ("deletedSelf" in result && result.deletedSelf) {
     await clearSession();
     redirect("/login");
   }

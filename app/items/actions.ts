@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { parseDateInput, todayDateInput } from "@/lib/item-dates";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { canEditInventory } from "@/lib/roles";
+import { inventoryAccessError } from "@/lib/access";
 
 export type ItemFormState = {
   error?: string;
@@ -24,9 +24,9 @@ function wholeNumber(value: FormDataEntryValue | null, fallback: number) {
   return Number.isInteger(parsed) ? parsed : Number.NaN;
 }
 
-async function requireEditor() {
+async function requireEditor(kind: "add" | "edit") {
   const user = await getCurrentUser();
-  if (!user || !canEditInventory(user.role)) {
+  if (inventoryAccessError(user, kind)) {
     return null;
   }
   return user;
@@ -126,7 +126,7 @@ export async function createItem(
   _previous: ItemFormState,
   formData: FormData
 ): Promise<ItemFormState> {
-  const user = await requireEditor();
+  const user = await requireEditor("add");
   if (!user) {
     return { error: "Only admins and managers can add items." };
   }
@@ -173,7 +173,7 @@ export async function updateItem(
   _previous: ItemFormState,
   formData: FormData
 ): Promise<ItemFormState> {
-  const user = await requireEditor();
+  const user = await requireEditor("edit");
   if (!user) {
     return { error: "Only admins and managers can edit items." };
   }

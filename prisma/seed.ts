@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import { pinCredential } from "../lib/pin";
 import { prisma } from "../lib/prisma";
 
 const users = [
@@ -72,10 +73,17 @@ const existingHistory = [
 
 async function main() {
   for (const user of users) {
+    const credential = pinCredential(user.pin);
     await prisma.user.upsert({
-      where: { pin: user.pin },
-      update: { name: user.name, role: user.role, canScan: true },
-      create: { ...user, canScan: true },
+      where: { pinLookup: credential.pinLookup },
+      update: { name: user.name, role: user.role, canScan: true, active: true },
+      create: {
+        name: user.name,
+        role: user.role,
+        canScan: true,
+        active: true,
+        ...credential,
+      },
     });
   }
 

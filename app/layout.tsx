@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { BottomNav } from "@/components/bottom-nav";
 import { SessionBar } from "@/components/session-bar";
@@ -38,6 +39,9 @@ export default async function RootLayout({
   const pathname = headers().get("x-pathname") ?? "";
   const onLogin = pathname === "/login";
   const user = onLogin ? null : await getCurrentUser();
+  if (!onLogin && pathname && !user) {
+    redirect("/login?reauth=1");
+  }
   const showSettings = user ? canManageSettings(user.role) : false;
 
   return (

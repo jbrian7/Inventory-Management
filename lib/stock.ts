@@ -1,3 +1,4 @@
+import { scanAccessError, type AccessUser } from "@/lib/access";
 import { prisma } from "@/lib/prisma";
 
 export type StockItem = {
@@ -36,7 +37,11 @@ function toStockItem(item: {
   };
 }
 
-export async function findItemByQr(qrCodeData: string): Promise<StockResult> {
+export async function findItemByQr(qrCodeData: string, user: AccessUser | null): Promise<StockResult> {
+  const denied = scanAccessError(user);
+  if (denied) {
+    return { error: denied };
+  }
   const code = qrCodeData.trim();
   if (!code) {
     return { error: "That QR code was empty." };
@@ -56,8 +61,13 @@ export async function findItemByQr(qrCodeData: string): Promise<StockResult> {
 export async function adjustStock(
   qrCodeData: string,
   direction: StockDirection,
-  amount: number
+  amount: number,
+  user: AccessUser | null
 ): Promise<StockResult> {
+  const denied = scanAccessError(user);
+  if (denied) {
+    return { error: denied };
+  }
   const code = qrCodeData.trim();
   if (!Number.isInteger(amount) || amount < 1) {
     return { error: "Enter a whole number of 1 or more." };

@@ -15,7 +15,8 @@ export async function middleware(request: NextRequest) {
   const session = await openSession(request.cookies.get(sessionCookieName)?.value);
 
   if (pathname === "/login") {
-    if (session) {
+    const reauth = request.nextUrl.searchParams.get("reauth") === "1";
+    if (session && !reauth) {
       return NextResponse.redirect(new URL("/", request.url));
     }
     return continueWithPath(request);

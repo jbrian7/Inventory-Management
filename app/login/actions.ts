@@ -1,23 +1,28 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { clearSession, setSession } from "@/lib/current-user";
-import { prisma } from "@/lib/prisma";
-import { isRole } from "@/lib/roles";
+import { authenticatePin } from "@/lib/authenticate-pin";
+import { buildSession, clearSession, setSession } from "@/lib/current-user";
+
+function throttleKey() {
+  const forwarded = headers().get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = forwarded || headers().get("x-real-ip")?.trim() || "local";
+  return `ip:${ip}`;
+}
 
 export async function login(pin: string) {
-  const code = pin.trim();
-  if (!/^\d{4}$/.test(code)) {
-    return { error: "Enter a 4-digit PIN." };
+  const result = await authenticatePin(pin, throttleKey());
+  if ("error" in result) {
+    return result;
   }
 
-  const user = await prisma.user.findUnique({ where: { pin: code } });
-  if (!user || !isRole(user.role)) {
+  const session = buildSession(result.user);
+  if (!session) {
     return { error: "That PIN is not recognized." };
   }
-
-  await setSession({ id: user.id, role: user.role });
+  await setSession(session);
   redirect("/");
 }
 

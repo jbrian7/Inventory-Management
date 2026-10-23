@@ -19,3 +19,10 @@ export function canManageSettings(role: string) {
 export function canEditInventory(role: string) {
   return role === "ADMIN" || role === "MANAGER";
 }
+
+export function rolesAssignableBy(actorRole: Role): Role[] {
+  if (actorRole === "ADMIN") {
+    return ["ADMIN", "MANAGER", "STAFF"];
+  }
+  return ["MANAGER", "STAFF"];
+}

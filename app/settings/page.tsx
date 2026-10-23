@@ -14,19 +14,22 @@ import { UserManager } from "@/app/settings/user-manager";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
-import { canManageSettings } from "@/lib/roles";
+import { canManageSettings, isRole } from "@/lib/roles";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/login");
+    redirect("/login?reauth=1");
   }
-  if (!canManageSettings(user.role)) {
+  if (!isRole(user.role) || !canManageSettings(user.role)) {
     redirect("/?denied=settings");
   }
 
   const [users, locations, categories] = await Promise.all([
-    prisma.user.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }] }),
+    prisma.user.findMany({
+      select: { id: true, name: true, role: true, canScan: true, active: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    }),
     prisma.location.findMany({ orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
@@ -45,7 +48,7 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">Users</CardTitle>
         </CardHeader>
         <CardContent>
-          <UserManager users={users} />
+          <UserManager actorRole={user.role} users={users} />
         </CardContent>
       </Card>
 

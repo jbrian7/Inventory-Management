@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getCurrentUser } from "@/lib/current-user";
 import {
   adjustStock,
   findItemByQr,
@@ -10,7 +11,8 @@ import {
 } from "@/lib/stock";
 
 export async function lookupQrCode(qrCodeData: string): Promise<StockResult> {
-  return findItemByQr(qrCodeData);
+  const user = await getCurrentUser();
+  return findItemByQr(qrCodeData, user);
 }
 
 export async function updateStock(
@@ -18,7 +20,8 @@ export async function updateStock(
   direction: StockDirection,
   amount: number
 ): Promise<StockResult> {
-  const result = await adjustStock(qrCodeData, direction, amount);
+  const user = await getCurrentUser();
+  const result = await adjustStock(qrCodeData, direction, amount, user);
   if ("item" in result) {
     revalidatePath("/items");
     revalidatePath("/");

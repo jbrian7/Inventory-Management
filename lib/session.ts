@@ -1,10 +1,13 @@
 import { isRole, type Role } from "@/lib/roles";
 
 export const sessionCookieName = "zap_session";
+export const sessionTtlSeconds = 60 * 60 * 24 * 7;
 
 export type Session = {
   id: string;
   role: Role;
+  sv: number;
+  exp: number;
 };
 
 const encoder = new TextEncoder();
@@ -53,6 +56,21 @@ function safeEqual(left: string, right: string) {
   return mismatch === 0;
 }
 
+export function buildSession(
+  user: { id: string; role: string; sessionVersion: number },
+  now = Date.now()
+): Session | null {
+  if (!isRole(user.role)) {
+    return null;
+  }
+  return {
+    id: user.id,
+    role: user.role,
+    sv: user.sessionVersion,
+    exp: now + sessionTtlSeconds * 1000,
+  };
+}
+
 export async function sealSession(session: Session) {
   const payload = bytesToBase64Url(encoder.encode(JSON.stringify(session)));
   const signature = await sign(payload);
@@ -72,14 +90,25 @@ export async function openSession(token: string | undefined | null): Promise<Ses
     return null;
   }
   try {
-    const parsed = JSON.parse(base64UrlToString(payload)) as { id?: unknown; role?: unknown };
+    const parsed = JSON.parse(base64UrlToString(payload)) as {
+      id?: unknown;
+      role?: unknown;
+      sv?: unknown;
+      exp?: unknown;
+    };
     if (typeof parsed.id !== "string" || parsed.id.length === 0) {
       return null;
     }
     if (typeof parsed.role !== "string" || !isRole(parsed.role)) {
       return null;
     }
-    return { id: parsed.id, role: parsed.role };
+    if (typeof parsed.sv !== "number" || !Number.isInteger(parsed.sv) || parsed.sv < 0) {
+      return null;
+    }
+    if (typeof parsed.exp !== "number" || !Number.isFinite(parsed.exp) || parsed.exp <= Date.now()) {
+      return null;
+    }
+    return { id: parsed.id, role: parsed.role, sv: parsed.sv, exp: parsed.exp };
   } catch {
     return null;
   }
@@ -90,5 +119,5 @@ export const sessionCookieOptions = {
   sameSite: "lax" as const,
   secure: process.env.NODE_ENV === "production",
   path: "/",
-  maxAge: 60 * 60 * 24 * 7,
+  maxAge: sessionTtlSeconds,
 };
