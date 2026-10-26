@@ -112,10 +112,14 @@ When `LP_DEST` is unset, the print server returns `printed: false` and `status: 
 ## Checks
 
 ```bash
+npm ci
+npm ci --prefix pi-print-server
 npx tsc --noEmit
 npm run lint
 npm test
 npm run build
 ```
+
+The print tests load `pi-print-server/server.js`, which needs the Express install from that folder's lockfile.
 
 Pull requests run those checks in `.github/workflows/check.yml`.
