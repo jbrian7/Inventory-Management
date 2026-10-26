@@ -1,5 +1,5 @@
 /**
- * In-place auth migration for an existing Zap Zone SQLite file.
+ * In-place auth migration for an existing Inventory Manager SQLite file.
  *
  * Replaces each User.pin with a salted scrypt hash (pinHash) and an HMAC-SHA256
  * lookup key (pinLookup) derived with PIN_PEPPER. Adds active and sessionVersion.

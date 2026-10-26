@@ -329,12 +329,22 @@ test("signed-in staff can print an item, and only managers can test the printer"
     throw new Error("should not send");
   });
   assert.equal(testDenied.printed, false);
-  const testSent = await prepareTestPrint(manager, async (label) => {
-    sent = label;
-    return { status: "printed", printed: true };
-  });
-  assert.equal(testSent.printed, true);
-  assert.deepEqual(sent, { name: "Zap Zone test", sku: "TEST", qrData: "ZAP-TEST" });
+  const previousBusiness = process.env.BUSINESS_NAME;
+  process.env.BUSINESS_NAME = "Zap Zone";
+  try {
+    const testSent = await prepareTestPrint(manager, async (label) => {
+      sent = label;
+      return { status: "printed", printed: true };
+    });
+    assert.equal(testSent.printed, true);
+    assert.deepEqual(sent, { name: "Zap Zone test", sku: "TEST", qrData: "ZAP-TEST" });
+  } finally {
+    if (previousBusiness === undefined) {
+      delete process.env.BUSINESS_NAME;
+    } else {
+      process.env.BUSINESS_NAME = previousBusiness;
+    }
+  }
 });
 
 test("client responses never treat an unconfirmed body as printed", async () => {

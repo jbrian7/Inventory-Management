@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { History, LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
 
+import { ProductLockup } from "@/components/product-lockup";
 import { primaryNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +43,15 @@ export function BottomNav({ showSettings }: { showSettings: boolean }) {
   );
 }
 
-export function SideNav({ showSettings }: { showSettings: boolean }) {
+export function SideNav({
+  showSettings,
+  product,
+  business,
+}: {
+  showSettings: boolean;
+  product: string;
+  business: string;
+}) {
   const pathname = usePathname();
   const visible = primaryNav(showSettings);
 
@@ -51,7 +60,9 @@ export function SideNav({ showSettings }: { showSettings: boolean }) {
       aria-label="Primary"
       className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r bg-background py-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-3 lg:flex"
     >
-      <p className="px-3 pb-4 text-sm font-semibold tracking-tight">Zap Zone</p>
+      <div className="px-3 pb-4">
+        <ProductLockup product={product} business={business} />
+      </div>
       <ul className="flex flex-col gap-1">
         {visible.map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} variant="side" />

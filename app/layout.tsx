@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { BottomNav, SideNav } from "@/components/bottom-nav";
 import { SessionBar } from "@/components/session-bar";
+import { businessName, documentTitle, productName } from "@/lib/brand";
 import { getCurrentUser } from "@/lib/current-user";
 import { canManageSettings, isRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -18,10 +19,9 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Zap Zone Inventory",
-  description:
-    "Mobile inventory for Zap Zone prizes, novelties, and arcade parts.",
-  applicationName: "Zap Zone Inventory",
+  title: documentTitle(),
+  description: `${productName} for ${businessName()}. Stock stays in this deployment's database.`,
+  applicationName: productName,
 };
 
 export const viewport: Viewport = {
@@ -53,7 +53,9 @@ export default async function RootLayout({
             onLogin ? "max-w-md" : "max-w-md tablet:max-w-3xl lg:!max-w-6xl lg:flex-row"
           )}
         >
-          {onLogin ? null : <SideNav showSettings={showSettings} />}
+          {onLogin ? null : (
+            <SideNav showSettings={showSettings} product={productName} business={businessName()} />
+          )}
           <div className="flex min-w-0 flex-1 flex-col">
             <main
               className={cn(

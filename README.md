@@ -1,6 +1,10 @@
-# Zap Zone QR Inventory System
+# Inventory Manager
 
-Mobile-first inventory for family entertainment centers. Staff scan bin labels on an iPhone or iPad, and the Next.js server on the store LAN records the stock change in SQLite. Labels are sent from that server to a Raspberry Pi print process. The printer token never goes to the browser.
+Inventory Manager is the product. This deployment's business name is Zap Zone, set with `BUSINESS_NAME`. When that variable is missing or blank, the app shows Your business.
+
+Run one deployment per business. Each copy has its own SQLite file, its own `AUTH_SECRET` and `PIN_PEPPER`, and its own printer URL and token. There is no business switcher and no shared tenant table. The database path for this deployment stays `file:./dev.db`. Item QR values stay `ZAP-ITEM-<id>`, and the session cookie stays `zap_session`.
+
+Staff scan bin labels on an iPhone or iPad, and the Next.js server on the store LAN records the stock change in SQLite. Labels are sent from that server to a Raspberry Pi print process. The printer token never goes to the browser.
 
 Repository: [jbrian7/Inventory-Management](https://github.com/jbrian7/Inventory-Management)
 
@@ -37,7 +41,10 @@ Create `.env` from `.env.example`:
 DATABASE_URL="file:./dev.db"
 AUTH_SECRET="replace-with-a-long-random-string"
 PIN_PEPPER="replace-with-a-different-long-random-string"
+BUSINESS_NAME="Zap Zone"
 ```
+
+`BUSINESS_NAME` is the only business setting. Leave it unset on a new copy to show Your business. Do not put another business in this database.
 
 `PIN_PEPPER` must be at least 16 characters. Keep it with the database backups. Changing it makes existing PINs unverifiable.
 
@@ -89,7 +96,7 @@ sqlite3 dev.db ".backup 'dev.db.bak'"
 
 Failed PINs are counted in the database. Five failures in ten minutes lock that client for ten minutes. On the store LAN, with no reverse proxy, every device shares one counter. That is intentional: the browser cannot supply its own address.
 
-Set `TRUST_PROXY=1` only when a proxy you run replaces `X-Forwarded-For` with the real client, or appends it. Zap Zone uses the last address in that header, then `X-Real-IP` if the forwarded header is empty. Example for a single nginx in front of the app:
+Set `TRUST_PROXY=1` only when a proxy you run replaces `X-Forwarded-For` with the real client, or appends it. The app uses the last address in that header, then `X-Real-IP` if the forwarded header is empty. Example for a single nginx in front of the app:
 
 ```nginx
 proxy_set_header X-Forwarded-For $remote_addr;

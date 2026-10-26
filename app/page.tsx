@@ -24,7 +24,6 @@ export default async function HomePage({
       ) : null}
       <div className="flex flex-col gap-4 tablet:!flex-row tablet:items-end tablet:justify-between">
         <header className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">Zap Zone</p>
           <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
           <p className="text-sm text-muted-foreground">Scan a bin label to check stock in or out.</p>
         </header>
