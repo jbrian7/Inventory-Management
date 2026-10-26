@@ -236,10 +236,26 @@ test("history filters, legacy rows, and pages stay consistent", async () => {
     quantityAfter: null,
     reason: null,
     timestamp: new Date("2026-10-19T09:08:08.234Z"),
+    actorName: null,
     user: null,
     item: { id: "item", name: "Bouncy balls" },
   });
   assert.equal(legacy.actor, "Unknown");
+  assert.equal(
+    presentMovement({
+      id: "named",
+      action: "REMOVE",
+      amount: 1,
+      quantityBefore: 2,
+      quantityAfter: 1,
+      reason: null,
+      timestamp: new Date("2026-10-19T09:08:08.234Z"),
+      actorName: "Casey",
+      user: { name: "Casey Renamed" },
+      item: { id: "item", name: "Bouncy balls" },
+    }).actor,
+    "Casey"
+  );
   assert.equal(legacy.quantityLine, "Recorded before counts were tracked");
 
   const balls = await prisma.item.findFirstOrThrow({ where: { sku: "BB-1" } });

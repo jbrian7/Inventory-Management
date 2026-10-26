@@ -31,6 +31,7 @@ export type MovementSnapshot = {
   quantityAfter: number | null;
   reason: string | null;
   timestamp: Date;
+  actorName?: string | null;
   user: { name: string } | null;
   item: { id: string; name: string } | null;
 };
@@ -96,7 +97,7 @@ export function presentMovement(entry: MovementSnapshot): PresentedMovement {
     itemId: entry.item?.id ?? "",
     itemName: entry.item?.name.trim() || "Unknown item",
     title: movementTitle(entry),
-    actor: movementActorLabel(entry.user),
+    actor: movementActorLabel(entry),
     quantityLine: movementQuantityLine(entry),
     reason: entry.reason?.trim() || null,
     time: formatMovementTime(entry.timestamp),

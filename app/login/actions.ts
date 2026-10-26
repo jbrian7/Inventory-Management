@@ -4,12 +4,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { authenticatePin } from "@/lib/authenticate-pin";
+import { clientAddress } from "@/lib/client-address";
 import { buildSession, clearSession, setSession } from "@/lib/current-user";
 
 function throttleKey() {
-  const forwarded = headers().get("x-forwarded-for")?.split(",")[0]?.trim();
-  const ip = forwarded || headers().get("x-real-ip")?.trim() || "local";
-  return `ip:${ip}`;
+  return clientAddress(headers());
 }
 
 export async function login(pin: string) {

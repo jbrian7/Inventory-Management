@@ -50,6 +50,10 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">Users</CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Deactivate someone who leaves. Past stock movements keep the name recorded at the time.
+            Inactive people cannot sign in.
+          </p>
           <UserManager actorRole={user.role} users={users} />
         </CardContent>
       </Card>

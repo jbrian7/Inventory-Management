@@ -136,11 +136,15 @@ function UserEditForm({
     <div className="flex flex-col gap-4">
       <DialogHeader>
         <DialogTitle>Edit {user.name}</DialogTitle>
-        <DialogDescription>Set a new PIN or role, or remove this person.</DialogDescription>
+        <DialogDescription>
+          Change the name, PIN, or role. Uncheck Active to sign this person out. Past movements keep
+          the name stored on each one.
+        </DialogDescription>
       </DialogHeader>
       <form action={updateAction} className="flex flex-col gap-3">
         <input type="hidden" name="id" value={user.id} />
-        <input type="hidden" name="name" value={user.name} />
+        <Label htmlFor={`name-${user.id}`}>Name</Label>
+        <Input id={`name-${user.id}`} name="name" defaultValue={user.name} required />
         <Label htmlFor={`pin-${user.id}`}>New PIN</Label>
         <Input
           id={`pin-${user.id}`}
@@ -173,6 +177,9 @@ function UserEditForm({
           />
           Active
         </label>
+        <p className="text-sm text-muted-foreground">
+          Unchecking Active deactivates this person. Their stock history stays attributed to them.
+        </p>
         {updateState.error ? (
           <p className="text-sm font-medium text-destructive" role="alert">
             {updateState.error}
@@ -180,17 +187,23 @@ function UserEditForm({
         ) : null}
         <SaveButton label="Save" />
       </form>
-      <form action={removeAction}>
-        <input type="hidden" name="id" value={user.id} />
-        {removeState.error ? (
-          <p className="mb-2 text-sm font-medium text-destructive" role="alert">
-            {removeState.error}
+      {user.active ? (
+        <form action={removeAction} className="flex flex-col gap-2 border-t pt-4">
+          <input type="hidden" name="id" value={user.id} />
+          <p className="text-sm text-muted-foreground">
+            Deactivate signs them out immediately. Past movements keep their name, and you can turn
+            Active back on later.
           </p>
-        ) : null}
-        <Button type="submit" variant="destructive" className="w-full">
-          Delete user
-        </Button>
-      </form>
+          {removeState.error ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {removeState.error}
+            </p>
+          ) : null}
+          <Button type="submit" variant="destructive" className="w-full">
+            Deactivate
+          </Button>
+        </form>
+      ) : null}
     </div>
   );
 }

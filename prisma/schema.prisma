@@ -65,6 +65,7 @@ model History {
   item           Item     @relation(fields: [itemId], references: [id])
   userId         String?
   user           User?    @relation(fields: [userId], references: [id])
+  actorName      String?
   action         String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM"
   amount         Int
   quantityBefore Int?

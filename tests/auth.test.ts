@@ -16,6 +16,9 @@ import { userFromSession } from "@/lib/current-user";
 import { pinCredential, verifyPin } from "@/lib/pin";
 import { prisma } from "@/lib/prisma";
 import { buildSession, openSession, sealSession } from "@/lib/session";
+import { seedMissingUsers } from "@/lib/dev-seed";
+import { recordLoginFailure } from "@/lib/login-throttle";
+import { movementActorLabel } from "@/lib/movement";
 import { createStaffMember, removeStaffMember, updateStaffMember } from "@/lib/staff-admin";
 import { adjustStock, findItemByQr } from "@/lib/stock";
 import { migrateUserAuth } from "../scripts/migrate-user-auth";
@@ -316,6 +319,125 @@ test("sessions expire and PIN or role changes invalidate them", async () => {
   assert.equal(await userFromSession(afterRole), null);
 });
 
+test("parallel login failures lock the client", async () => {
+  const key = "parallel-lock";
+  const start = new Date("2026-10-22T15:00:00.000Z");
+  await Promise.all(
+    Array.from({ length: 8 }, () => recordLoginFailure(key, start))
+  );
+  const row = await prisma.loginThrottle.findUniqueOrThrow({ where: { key } });
+  assert.equal(row.failures, 8);
+  assert.ok(row.lockedUntil && row.lockedUntil.getTime() > start.getTime());
+
+  const locked = await authenticatePin("0000", key, new Date(start.getTime() + 1000));
+  assert.equal("error" in locked && locked.error, "Too many attempts. Try again later.");
+
+  await recordLoginFailure(key, new Date(start.getTime() + 11 * 60 * 1000));
+  const reset = await prisma.loginThrottle.findUniqueOrThrow({ where: { key } });
+  assert.equal(reset.failures, 1);
+  assert.equal(reset.lockedUntil, null);
+});
+
+test("deactivation keeps the movement name and blocks the PIN", async () => {
+  const casey = await prisma.user.create({
+    data: { name: "Casey", role: "STAFF", ...pinCredential("6161") },
+  });
+  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-test" } });
+  const movement = await prisma.history.create({
+    data: {
+      itemId: item.id,
+      userId: casey.id,
+      actorName: "Casey",
+      action: "REMOVE",
+      amount: 1,
+      quantityBefore: 10,
+      quantityAfter: 9,
+    },
+  });
+  const renamed = await updateStaffMember(admin, {
+    id: casey.id,
+    name: "Casey Renamed",
+    pin: "",
+    role: "STAFF",
+    active: true,
+    canScan: true,
+  });
+  assert.equal("saved" in renamed, true);
+  const afterRename = await prisma.history.findUniqueOrThrow({ where: { id: movement.id } });
+  assert.equal(afterRename.userId, casey.id);
+  assert.equal(afterRename.actorName, "Casey");
+  assert.equal(movementActorLabel(afterRename), "Casey");
+
+  const deactivated = await removeStaffMember(admin, casey.id);
+  assert.equal("saved" in deactivated, true);
+  const person = await prisma.user.findUniqueOrThrow({ where: { id: casey.id } });
+  assert.equal(person.active, false);
+  const after = await prisma.history.findUniqueOrThrow({ where: { id: movement.id } });
+  assert.equal(after.userId, casey.id);
+  assert.equal(after.actorName, "Casey");
+  const login = await authenticatePin("6161", "casey-deactivated");
+  assert.equal("error" in login && login.error, "That PIN is not recognized.");
+  const quantity = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+  assert.equal(quantity.quantity, 10);
+});
+
+test("two admins cannot demote each other out of the last admin seat", async () => {
+  const second = await prisma.user.create({
+    data: { name: "Second Admin", role: "ADMIN", ...pinCredential("7171") },
+  });
+  const results = await Promise.all([
+    updateStaffMember(admin, {
+      id: admin.id,
+      name: "Admin",
+      pin: "",
+      role: "STAFF",
+      active: true,
+      canScan: true,
+    }),
+    updateStaffMember(
+      { id: second.id, role: "ADMIN" },
+      {
+        id: second.id,
+        name: "Second Admin",
+        pin: "",
+        role: "STAFF",
+        active: true,
+        canScan: true,
+      }
+    ),
+  ]);
+  const admins = await prisma.user.count({ where: { role: "ADMIN", active: true } });
+  assert.equal(admins, 1);
+  assert.equal(results.filter((result) => "error" in result).length, 1);
+  await prisma.user.update({ where: { id: admin.id }, data: { role: "ADMIN", active: true } });
+  await prisma.user.update({ where: { id: second.id }, data: { role: "STAFF", active: false } });
+});
+
+test("seeding does not rewrite an existing account", async () => {
+  const before = await prisma.user.findUniqueOrThrow({ where: { id: admin.id } });
+  const quantity = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-test" } });
+  await prisma.user.update({
+    where: { id: admin.id },
+    data: { role: "ADMIN", active: false, canScan: false, name: "Renamed Admin" },
+  });
+  try {
+    await seedMissingUsers();
+    const after = await prisma.user.findUniqueOrThrow({ where: { id: admin.id } });
+    assert.equal(after.role, "ADMIN");
+    assert.equal(after.active, false);
+    assert.equal(after.canScan, false);
+    assert.equal(after.name, "Renamed Admin");
+    assert.equal(after.pinHash, before.pinHash);
+    const still = await prisma.item.findUniqueOrThrow({ where: { id: quantity.id } });
+    assert.equal(still.quantity, quantity.quantity);
+  } finally {
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { active: true, canScan: true, name: before.name, role: "ADMIN" },
+    });
+  }
+});
+
 test("server actions and the editor do not trust a cookie or show a PIN", () => {
   const scan = fs.readFileSync(path.join(repoRoot, "app/scan/actions.ts"), "utf8");
   const items = fs.readFileSync(path.join(repoRoot, "app/items/actions.ts"), "utf8");
@@ -323,5 +445,8 @@ test("server actions and the editor do not trust a cookie or show a PIN", () => 
   assert.match(scan, /getCurrentUser/);
   assert.match(items, /inventoryAccessError/);
   assert.match(editor, /Leave blank to keep the current PIN/);
+  assert.match(editor, /name="name"/);
+  assert.match(editor, /Deactivate/);
+  assert.doesNotMatch(editor, /Delete user/);
   assert.doesNotMatch(editor, /defaultValue=\{user\.pin\}/);
 });

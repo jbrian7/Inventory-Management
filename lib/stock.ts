@@ -110,19 +110,26 @@ async function replay(requestId: string, db: typeof prisma): Promise<StockResult
   return { item: toStockItem(prior.item) };
 }
 
-export function openingMovement(userId: string, quantity: number, requestId: string) {
+export function openingMovement(userId: string, actorName: string, quantity: number, requestId: string) {
   if (!parseRequestId(requestId) || parseQuantity(quantity) === null) {
     throw new Error("Invalid opening stock.");
   }
+  const name = actorName.trim() || "Unknown";
   return {
     action: "NEW_ITEM",
     amount: quantity,
     quantityBefore: 0,
     quantityAfter: quantity,
     userId,
+    actorName: name,
     requestId,
     reason: null,
   };
+}
+
+async function actorSnapshot(db: { user: { findUnique: typeof prisma.user.findUnique } }, userId: string) {
+  const actor = await db.user.findUnique({ where: { id: userId }, select: { name: true } });
+  return actor?.name.trim() || "Unknown";
 }
 
 export async function findItemByQr(qrCodeData: string, user: AccessUser | null): Promise<StockResult> {
@@ -274,6 +281,7 @@ async function applyAdjustment(
       data: {
         itemId: updated.id,
         userId: input.userId,
+        actorName: await actorSnapshot(tx, input.userId),
         action: input.action,
         amount: input.amount,
         quantityBefore,
@@ -397,6 +405,7 @@ async function applyCorrection(
       data: {
         itemId: updated.id,
         userId: input.userId,
+        actorName: await actorSnapshot(tx, input.userId),
         action: "AUDIT",
         amount: Math.abs(input.next - input.expected),
         quantityBefore: input.expected,

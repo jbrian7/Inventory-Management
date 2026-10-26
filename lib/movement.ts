@@ -10,9 +10,15 @@ export function isStockAction(value: string): value is StockAction {
   return (stockActions as readonly string[]).includes(value);
 }
 
-export function movementActorLabel(user: { name: string } | null | undefined) {
-  const name = user?.name?.trim();
-  return name || "Unknown";
+export function movementActorLabel(
+  entry: { name?: string | null; actorName?: string | null; user?: { name: string } | null } | null | undefined
+) {
+  const snapshot = entry && "actorName" in entry ? entry.actorName?.trim() : "";
+  if (snapshot) {
+    return snapshot;
+  }
+  const related = entry && "user" in entry && entry.user ? entry.user.name : entry?.name;
+  return related?.trim() || "Unknown";
 }
 
 export const actionFilterLabels: Record<StockAction, string> = {

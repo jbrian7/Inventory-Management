@@ -20,6 +20,7 @@ import {
 import { pinCredential } from "@/lib/pin";
 import { prisma } from "@/lib/prisma";
 import { adjustStock, correctStock } from "@/lib/stock";
+import { migrateActorName } from "../scripts/migrate-actor-name";
 import { migrateStockHistory } from "../scripts/migrate-stock-history";
 import { testDatabasePath } from "./env";
 
@@ -111,6 +112,55 @@ test("legacy history rows survive the audit migration", () => {
   fs.rmSync(file, { force: true });
 });
 
+test("actor-name migration keeps history identity and item quantities", () => {
+  const file = path.join(os.tmpdir(), `zap-actor-${process.pid}.db`);
+  fs.rmSync(file, { force: true });
+  const db = new Database(file);
+  db.exec(`
+    CREATE TABLE User (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE Item (id TEXT PRIMARY KEY, sku TEXT NOT NULL, quantity INTEGER NOT NULL);
+    CREATE TABLE History (
+      id TEXT PRIMARY KEY,
+      itemId TEXT NOT NULL,
+      userId TEXT,
+      action TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      timestamp DATETIME NOT NULL
+    );
+    INSERT INTO User (id, name) VALUES ('user-1', 'Casey');
+    INSERT INTO Item (id, sku, quantity) VALUES ('item-1', 'BB-001', 4);
+    INSERT INTO History (id, itemId, userId, action, amount, timestamp)
+      VALUES ('hist-1', 'item-1', 'user-1', 'REMOVE', 2, '2026-10-19T09:08:08.000Z');
+    INSERT INTO History (id, itemId, userId, action, amount, timestamp)
+      VALUES ('hist-2', 'item-1', NULL, 'ADD', 1, '2026-10-19T09:09:08.000Z');
+  `);
+  db.close();
+
+  const first = migrateActorName(file, () => undefined);
+  assert.equal(first.filled, 1);
+  const again = migrateActorName(file, () => undefined);
+  assert.equal(again.filled, 0);
+  const migrated = new Database(file);
+  const named = migrated.prepare("SELECT userId, actorName, amount FROM History WHERE id = 'hist-1'").get() as {
+    userId: string | null;
+    actorName: string | null;
+    amount: number;
+  };
+  const blank = migrated.prepare("SELECT userId, actorName FROM History WHERE id = 'hist-2'").get() as {
+    userId: string | null;
+    actorName: string | null;
+  };
+  const item = migrated.prepare("SELECT quantity FROM Item WHERE id = 'item-1'").get() as { quantity: number };
+  assert.equal(named.userId, "user-1");
+  assert.equal(named.actorName, "Casey");
+  assert.equal(named.amount, 2);
+  assert.equal(blank.userId, null);
+  assert.equal(blank.actorName, null);
+  assert.equal(item.quantity, 4);
+  migrated.close();
+  fs.rmSync(file, { force: true });
+});
+
 test("permissions reject staff who cannot scan and staff stock corrections", async () => {
   const denied = await adjustStock("ZAP-ITEM-race", "REMOVE", 1, blocked, "perm-denied-01");
   assert.equal("error" in denied && denied.error, "Scanning is turned off for this account.");
@@ -150,6 +200,7 @@ test("a repeated submission records one movement", async () => {
   assert.equal(item.quantity, 4);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.userId, staff.id);
+  assert.equal(rows[0]?.actorName, "Haven");
   assert.equal(rows[0]?.action, "REMOVE");
   assert.equal(rows[0]?.amount, 1);
   assert.equal(rows[0]?.quantityBefore, 5);

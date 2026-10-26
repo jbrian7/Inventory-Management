@@ -1,109 +1,121 @@
-[readme.md](https://github.com/user-attachments/files/33652875/readme.md)
-# ⚡ Zap Zone QR Inventory System
+# Zap Zone QR Inventory System
 
-A lightweight, mobile-first inventory management system designed specifically for family entertainment centers. It streamlines the tracking of novelties, prizes, and arcade parts using QR codes, mobile device cameras, and a local Raspberry Pi print server for on-demand thermal label printing.
+Mobile-first inventory for family entertainment centers. Staff scan bin labels on an iPhone or iPad, and the Next.js server on the store LAN records the stock change in SQLite. Labels are sent from that server to a Raspberry Pi print process. The printer token never goes to the browser.
 
-## ✨ Features
+Repository: [jbrian7/Inventory-Management](https://github.com/jbrian7/Inventory-Management)
 
-*   **Mobile-First Design:** Built with a touch-friendly interface optimized for iPads and iPhones used by staff on the floor.
-*   **Built-in QR Scanning:** Uses the device's native camera directly in the browser—no dedicated scanner hardware required.
-*   **Quick Stock Adjustments:** Rapidly check-in or check-out inventory with large, easy-to-use buttons.
-*   **Low-Stock Alerts:** Set custom thresholds for items to visually indicate when it's time to reorder.
-*   **Local Network Printing:** A signed-in user prints a label through the Next.js server. The server sends it to a Raspberry Pi on the store LAN. The printer token stays on the server.
+## Features
 
-## 🛠️ Tech Stack
+- Touch layout for phones, with a wider layout on iPad and desktop browsers.
+- In-browser QR scanning with `html5-qrcode`.
+- Stock adjustments with an audit row for each change: who, what, before, after, and when.
+- Low-stock list on the home page.
+- Local printing through the Next.js server. CUPS accepting a job is not the same as a label leaving the printer.
 
-**Web Application:**
-*   **Framework:** Next.js (App Router)
-*   **UI/Styling:** Tailwind CSS, Shadcn UI
-*   **Database:** PostgreSQL
-*   **ORM:** Prisma
-*   **QR Scanning:** `html5-qrcode` / `react-qr-reader`
+## Stack
 
-**Print Server (Raspberry Pi):**
-*   **Environment:** Node.js / Express
-*   **QR Generation:** `qrcode` npm package
-*   **Printer Protocol:** `escpos` or `node-dymo-printer` (depending on hardware)
+- Next.js 14 App Router, React, and TypeScript
+- Tailwind CSS and Shadcn UI
+- SQLite through Prisma 7 and `better-sqlite3`
+- Raspberry Pi print server in `pi-print-server/` (Node.js, Express, CUPS `lp`)
 
-## 🚀 Getting Started
+There is no PostgreSQL database. `DATABASE_URL` is a SQLite file, usually `file:./dev.db`.
 
-This repository contains two main components: the Next.js web application and the Node.js print server for the Raspberry Pi.
+## Fresh install
 
-### Prerequisites
-*   Node.js (v18+)
-*   PostgreSQL database (local or hosted via Supabase/Neon)
-*   Raspberry Pi with Node.js installed (for the print server)
-*   A supported thermal label printer (USB or Network)
+Requirements: Node.js 22.
 
-### Part 1: Web Application Setup
+```bash
+git clone https://github.com/jbrian7/Inventory-Management.git
+cd Inventory-Management
+npm install
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/zap-zone-inventory.git
-   cd zap-zone-inventory
-   ```
+Create `.env` from `.env.example`:
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```env
+DATABASE_URL="file:./dev.db"
+AUTH_SECRET="replace-with-a-long-random-string"
+PIN_PEPPER="replace-with-a-different-long-random-string"
+```
 
-3. **Environment Setup:**
-   Create a `.env` file in the root directory and add your database connection string:
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/zapzone?schema=public"
-   ```
+`PIN_PEPPER` must be at least 16 characters. Keep it with the database backups. Changing it makes existing PINs unverifiable.
 
-4. **Initialize Database:**
-   Push the Prisma schema to your database:
-   ```bash
-   npx prisma db push
-   ```
+```bash
+npx prisma db push
+```
 
-5. **Run the Development Server:**
-   ```bash
-   npm run dev
-   ```
-   The app will be available at `http://localhost:3000`.
+Development accounts (PINs 1001, 2002, 3003, and 4004) are created only when you opt in, and never when `NODE_ENV` is `production`:
 
-### Part 2: Raspberry Pi Print Server Setup
+```bash
+ZAP_ALLOW_SEED=1 npx prisma db seed
+npm run dev
+```
 
-Run the Next.js app on the store LAN. It calls the Pi. The iPad does not call the Pi, and the printer token is not stored in the browser. Details are in `pi-print-server/README.md`.
+The app listens at `http://localhost:3000`.
 
-*Note: Ensure your thermal printer is connected to the Raspberry Pi and configured in CUPS if you use the default `lp` driver. No new printer is required.*
+For a store database, do not run the seed. Create one admin instead. This does not change inventory:
 
-1. **Move to the print server directory:**
-   ```bash
-   cd pi-print-server
-   ```
+```bash
+ZAP_ADMIN_NAME="Alex" ZAP_ADMIN_PIN="4821" npx tsx scripts/create-admin.ts
+```
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+The PIN must be 4 digits and must not be one of the development PINs. If that PIN already belongs to someone, the script stops and leaves the account as it is.
 
-3. **Start the print server with a token:**
-   ```bash
-   export PRINT_TOKEN="$(openssl rand -hex 32)"
-   export LP_DEST=ZapZone
-   node server.js
-   ```
-   Without `LP_DEST`, a request is a preview: the response has `printed: false`. *Tip: Use PM2 (`npm install -g pm2` then `pm2 start server.js --name zap-print`) to keep the print server running.*
+## Upgrade an existing database
 
-4. **Point the app server at the Pi:**
-   Set these in the Next.js environment, using the same token:
-   ```bash
-   PRINT_SERVER_URL="http://192.168.1.50:3001"
-   PRINT_SERVER_TOKEN="<same value as PRINT_TOKEN>"
-   ```
-   Admins and managers can open Settings to see whether the Pi is reachable, whether a CUPS queue is configured, and to print a test label. Allow port 3001 only from the app server.
+Stop the app first. Copy the SQLite file, then run the migrations in this order. Each script leaves item quantities alone. The auth script does not create demo users.
 
-## 📱 Usage
+```bash
+cp dev.db "dev.db.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+npx tsx scripts/migrate-user-auth.ts
+npx tsx scripts/migrate-stock-history.ts
+npx tsx scripts/migrate-actor-name.ts
+npx prisma db push
+```
 
-1. **Add Items:** Navigate to the "Items" tab to add a new novelty. The system will automatically generate a unique QR code payload.
-2. **Print Labels:** Open an item and click "Print Label". The app server sends the stored QR payload to the Pi. If the printer queue is not configured, the page says the label was not printed.
-3. **Scan & Adjust:** Attach the printed label to the item's bin. Staff can navigate to the "Scan" tab, point their iPad camera at the label, and instantly add or deduct stock.
+1. `migrate-user-auth.ts` replaces plaintext PINs with hashes. It needs `PIN_PEPPER`.
+2. `migrate-stock-history.ts` adds the before/after quantity columns. Older rows stay in place with those fields empty.
+3. `migrate-actor-name.ts` stores the staff name on movements that still point at a user. Rows with no user stay blank and show as Unknown.
+4. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
 
-## 📄 License
+Back up `dev.db` and `.env` together. The pepper is required to check PINs. A safe copy is a file copy while the app is stopped, or SQLite's online backup:
 
-This project is licensed under the MIT License.
+```bash
+sqlite3 dev.db ".backup 'dev.db.bak'"
+```
+
+## Login attempts
+
+Failed PINs are counted in the database. Five failures in ten minutes lock that client for ten minutes. On the store LAN, with no reverse proxy, every device shares one counter. That is intentional: the browser cannot supply its own address.
+
+Set `TRUST_PROXY=1` only when a proxy you run replaces `X-Forwarded-For` with the real client, or appends it. Zap Zone uses the last address in that header, then `X-Real-IP` if the forwarded header is empty. Example for a single nginx in front of the app:
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Do not forward a client-supplied `X-Forwarded-For` unchanged.
+
+## Printing
+
+Run Next.js on the store LAN so it can reach the Pi. A cloud host cannot open `192.168.x.x`. Setup for the Pi is in `pi-print-server/README.md`.
+
+```env
+PRINT_SERVER_URL="http://192.168.1.50:3001"
+PRINT_SERVER_TOKEN="same-value-as-PRINT_TOKEN"
+```
+
+When `LP_DEST` is unset, the print server returns `printed: false` and `status: "preview"`. When CUPS accepts the job, the response says the job was accepted. That confirms submission to CUPS, not that a physical label was printed.
+
+## Checks
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm test
+npm run build
+```
+
+Pull requests run those checks in `.github/workflows/check.yml`.

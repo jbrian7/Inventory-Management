@@ -41,7 +41,6 @@ export async function createStockedItem(
   user: { id: string },
   input: CatalogInput & { id: string; qrCodeData: string; quantity: number; requestId: string }
 ) {
-  const history = openingMovement(user.id, input.quantity, input.requestId);
   try {
     const item = await prisma.$transaction(async (tx) => {
       const prior = await tx.history.findUnique({
@@ -51,6 +50,8 @@ export async function createStockedItem(
       if (prior?.item) {
         return prior.item;
       }
+      const actor = await tx.user.findUnique({ where: { id: user.id }, select: { name: true } });
+      const history = openingMovement(user.id, actor?.name ?? "", input.quantity, input.requestId);
       return tx.item.create({
         data: {
           id: input.id,

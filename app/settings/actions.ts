@@ -68,7 +68,7 @@ export async function removeUser(_previous: ActionState, formData: FormData): Pr
     return { error: result.error };
   }
   revalidatePath("/settings");
-  if ("deletedSelf" in result && result.deletedSelf) {
+  if ("deactivatedSelf" in result && result.deactivatedSelf) {
     await clearSession();
     redirect("/login");
   }
