@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { EditItemForm } from "@/app/items/edit-item-form";
 import { Button } from "@/components/ui/button";
+import { totalQuantity } from "@/lib/balances";
 import { getCurrentUser } from "@/lib/current-user";
 import { toDateInput } from "@/lib/item-dates";
 import { prisma } from "@/lib/prisma";
@@ -18,9 +19,11 @@ export default async function EditItemPage({
     redirect(`/items/${params.id}`);
   }
 
-  const [item, locations, categories] = await Promise.all([
-    prisma.item.findUnique({ where: { id: params.id } }),
-    prisma.location.findMany({ orderBy: { name: "asc" } }),
+  const [item, categories] = await Promise.all([
+    prisma.item.findUnique({
+      where: { id: params.id },
+      include: { balances: { select: { quantity: true } } },
+    }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
   if (!item) {
@@ -35,16 +38,15 @@ export default async function EditItemPage({
         <p className="text-sm text-muted-foreground">{item.sku}</p>
       </header>
       <EditItemForm
-        locations={locations}
         categories={categories}
         defaults={{
           id: item.id,
           name: item.name,
           sku: item.sku,
           description: item.description ?? "",
-          quantity: item.quantity,
+          quantity: totalQuantity(item.balances),
           threshold: item.threshold,
-          locationId: item.locationId,
+          locationId: "",
           categoryId: item.categoryId,
           receivedAt: toDateInput(item.receivedAt),
           outOfStockAt: toDateInput(item.outOfStockAt),

@@ -50,12 +50,27 @@ function snapshot(db: Database.Database) {
     const count = db.prepare(`SELECT COUNT(*) AS n FROM "${table}"`).get() as { n: number };
     parts.push(`${table}:${count.n}`);
     if (table === "Item") {
-      const rows = db.prepare("SELECT id, sku, quantity FROM Item ORDER BY id").all() as {
-        id: string;
-        sku: string;
-        quantity: number;
-      }[];
-      parts.push(rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|"));
+      const names = new Set(columns(db, "Item").map((column) => column.name));
+      if (names.has("quantity")) {
+        const rows = db.prepare("SELECT id, sku, quantity FROM Item ORDER BY id").all() as {
+          id: string;
+          sku: string;
+          quantity: number;
+        }[];
+        parts.push(rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|"));
+      } else if (tableExists(db, "StockBalance")) {
+        const rows = db
+          .prepare(
+            `SELECT Item.id AS id, Item.sku AS sku, COALESCE(SUM(StockBalance.quantity), 0) AS quantity
+             FROM Item LEFT JOIN StockBalance ON StockBalance.itemId = Item.id
+             GROUP BY Item.id, Item.sku ORDER BY Item.id`
+          )
+          .all() as { id: string; sku: string; quantity: number }[];
+        parts.push(rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|"));
+      } else {
+        const rows = db.prepare("SELECT id, sku FROM Item ORDER BY id").all() as { id: string; sku: string }[];
+        parts.push(rows.map((row) => `${row.id}:${row.sku}`).join("|"));
+      }
     }
   }
   return parts.join("\n");

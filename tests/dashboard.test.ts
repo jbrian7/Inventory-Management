@@ -55,23 +55,21 @@ before(async () => {
     data: {
       name: "Bouncy balls",
       sku: "BB-1",
-      quantity: 4,
       threshold: 5,
-      locationId: location.id,
       categoryId: category.id,
       qrCodeData: "ZAP-ITEM-dash",
+      balances: { create: { locationId: location.id, quantity: 4 } },
     },
   });
   const filler = await prisma.item.create({
     data: {
       name: "Filler",
       sku: "FL-1",
-      quantity: 9,
       threshold: 1,
       isManualOos: true,
-      locationId: location.id,
       categoryId: category.id,
       qrCodeData: "ZAP-ITEM-filler",
+      balances: { create: { locationId: location.id, quantity: 9 } },
     },
   });
   await prisma.history.createMany({

@@ -43,11 +43,10 @@ before(async () => {
     data: {
       name: "Tokens",
       sku: "AT-1",
-      quantity: 10,
       threshold: 5,
       qrCodeData: "ZAP-ITEM-test",
-      locationId: location.id,
       categoryId: category.id,
+      balances: { create: { locationId: location.id, quantity: 10 } },
     },
   });
 
@@ -140,7 +139,9 @@ test("staff cannot add or edit inventory, and canScan is enforced", async () => 
     canScan: false,
   });
   assert.equal("error" in blocked && blocked.error, "Scanning is turned off for this account.");
-  const quantity = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-test" } });
+  const quantity = await prisma.stockBalance.findFirstOrThrow({
+    where: { item: { qrCodeData: "ZAP-ITEM-test" } },
+  });
   assert.equal(quantity.quantity, 10);
 
   const signedOut = await findItemByQr("ZAP-ITEM-test", null);
@@ -377,7 +378,7 @@ test("deactivation keeps the movement name and blocks the PIN", async () => {
   assert.equal(after.actorName, "Casey");
   const login = await authenticatePin("6161", "casey-deactivated");
   assert.equal("error" in login && login.error, "That PIN is not recognized.");
-  const quantity = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
+  const quantity = await prisma.stockBalance.findFirstOrThrow({ where: { itemId: item.id } });
   assert.equal(quantity.quantity, 10);
 });
 
@@ -415,7 +416,9 @@ test("two admins cannot demote each other out of the last admin seat", async () 
 
 test("seeding does not rewrite an existing account", async () => {
   const before = await prisma.user.findUniqueOrThrow({ where: { id: admin.id } });
-  const quantity = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-test" } });
+  const quantity = await prisma.stockBalance.findFirstOrThrow({
+    where: { item: { qrCodeData: "ZAP-ITEM-test" } },
+  });
   await prisma.user.update({
     where: { id: admin.id },
     data: { role: "ADMIN", active: false, canScan: false, name: "Renamed Admin" },
@@ -428,7 +431,7 @@ test("seeding does not rewrite an existing account", async () => {
     assert.equal(after.canScan, false);
     assert.equal(after.name, "Renamed Admin");
     assert.equal(after.pinHash, before.pinHash);
-    const still = await prisma.item.findUniqueOrThrow({ where: { id: quantity.id } });
+    const still = await prisma.stockBalance.findUniqueOrThrow({ where: { id: quantity.id } });
     assert.equal(still.quantity, quantity.quantity);
   } finally {
     await prisma.user.update({

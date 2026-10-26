@@ -1,5 +1,6 @@
 import { ItemCatalog } from "@/app/items/item-catalog";
 import { TopMovers } from "@/app/items/top-movers";
+import { balancesFromRows, locationSummary, totalQuantity } from "@/lib/balances";
 import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { canEditInventory } from "@/lib/roles";
@@ -12,7 +13,7 @@ export default async function ItemsPage({
   const [user, items, categories, locations] = await Promise.all([
     getCurrentUser(),
     prisma.item.findMany({
-      include: { location: true, category: true },
+      include: { category: true, balances: { include: { location: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
@@ -34,18 +35,22 @@ export default async function ItemsPage({
       <ItemCatalog
         initialQuery={searchParams.q?.trim() ?? ""}
         categories={categories.map((category) => ({ id: category.id, name: category.name }))}
-        items={items.map((item) => ({
+        items={items.map((item) => {
+          const balances = balancesFromRows(item.balances);
+          return {
           id: item.id,
           name: item.name,
           sku: item.sku,
-          quantity: item.quantity,
+          quantity: totalQuantity(balances),
           threshold: item.threshold,
-          locationName: item.location.name,
+          locationName: locationSummary(balances),
+          locationNames: balances.map((balance) => balance.name),
           categoryId: item.categoryId,
           categoryName: item.category.name,
           qrCodeData: item.qrCodeData,
           isManualOos: item.isManualOos,
-        }))}
+          };
+        })}
         canEdit={canEdit}
         locations={locations}
       />

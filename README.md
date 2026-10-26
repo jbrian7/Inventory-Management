@@ -71,26 +71,56 @@ The PIN must be 4 digits and must not be one of the development PINs. If that PI
 
 ## Upgrade an existing database
 
-Stop the app first. Copy the SQLite file, then run the migrations in this order. Each script leaves item quantities alone. The auth script does not create demo users.
+Stop the app first. Copy the SQLite file, then run the migrations in this order. Do not seed, and do not reset the database. The scripts are safe to run again.
 
 ```bash
 cp dev.db "dev.db.bak-$(date -u +%Y%m%dT%H%M%SZ)"
 npx tsx scripts/migrate-user-auth.ts
 npx tsx scripts/migrate-stock-history.ts
 npx tsx scripts/migrate-actor-name.ts
+npx tsx scripts/migrate-location-balances.ts
 npx prisma db push
 ```
 
 1. `migrate-user-auth.ts` replaces plaintext PINs with hashes. It needs `PIN_PEPPER`.
 2. `migrate-stock-history.ts` adds the before/after quantity columns. Older rows stay in place with those fields empty.
 3. `migrate-actor-name.ts` stores the staff name on movements that still point at a user. Rows with no user stay blank and show as Unknown.
-4. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
+4. `migrate-location-balances.ts` copies each item's quantity onto one balance at its current location, then removes `Item.quantity` and `Item.locationId`. It does not add stock at any other location. Item ids, SKUs, QR values, and history rows stay the same.
+5. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
 
 Back up `dev.db` and `.env` together. The pepper is required to check PINs. A safe copy is a file copy while the app is stopped, or SQLite's online backup:
 
 ```bash
 sqlite3 dev.db ".backup 'dev.db.bak'"
 ```
+
+Check the copy against the backup before starting the app again. Totals come from `StockBalance`, not from the item row:
+
+```bash
+sqlite3 dev.db.bak "SELECT sku, quantity FROM Item ORDER BY sku;"
+sqlite3 dev.db "SELECT Item.sku, Location.name, StockBalance.quantity
+  FROM StockBalance
+  JOIN Item ON Item.id = StockBalance.itemId
+  JOIN Location ON Location.id = StockBalance.locationId
+  ORDER BY Item.sku;"
+```
+
+Each SKU's balance must equal the backup quantity, and each SKU must have one balance. History counts should match:
+
+```bash
+sqlite3 dev.db.bak "SELECT COUNT(*) FROM History;"
+sqlite3 dev.db "SELECT COUNT(*) FROM History;"
+```
+
+Rollback is restoring the backup over the database file while the app is stopped. There is no reverse script.
+
+```bash
+cp "dev.db.bak-YYYYMMDDTHHMMSSZ" dev.db
+```
+
+Low stock compares an item's total across locations with its threshold. A transfer keeps that total, so it does not by itself mark an item low or clear a low-stock warning. An empty location does not mark the catalog item low while the total is still above the threshold. Manual out of stock is still a separate flag. A total of zero stays "Low" when the threshold is zero or more, which matches the previous catalog rule. "OUT OF STOCK" is only the manual flag.
+
+Printed QR codes still identify the catalog item. Add and deduct apply to the location you choose. When an item is stocked in more than one location, the scan screen requires that choice.
 
 ## Login attempts
 

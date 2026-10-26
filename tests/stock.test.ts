@@ -26,6 +26,17 @@ import { testDatabasePath } from "./env";
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+async function counted(qrCodeData: string) {
+  const item = await prisma.item.findUniqueOrThrow({
+    where: { qrCodeData },
+    include: { balances: true },
+  });
+  return {
+    item,
+    quantity: item.balances.reduce((sum, balance) => sum + balance.quantity, 0),
+  };
+}
+
 const staff = { id: "", role: "STAFF", active: true, canScan: true };
 const blocked = { id: "", role: "STAFF", active: true, canScan: false };
 const manager = { id: "", role: "MANAGER", active: true, canScan: true };
@@ -54,11 +65,10 @@ before(async () => {
     data: {
       name: "Tokens",
       sku: "AT-1",
-      quantity: 5,
       threshold: 2,
       qrCodeData: "ZAP-ITEM-race",
-      locationId: location.id,
       categoryId: category.id,
+      balances: { create: { locationId: location.id, quantity: 5 } },
     },
   });
   await prisma.$executeRawUnsafe("PRAGMA busy_timeout = 5000");
@@ -177,17 +187,17 @@ test("permissions reject staff who cannot scan and staff stock corrections", asy
   const correction = await correctStock("missing", 1, 5, "count", "perm-correct-1", staff);
   assert.match("error" in correction ? correction.error : "", /admins and managers/);
 
-  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
+  const item = await counted("ZAP-ITEM-race");
   assert.equal(item.quantity, 5);
-  assert.equal(await prisma.history.count({ where: { itemId: item.id } }), 0);
+  assert.equal(await prisma.history.count({ where: { itemId: item.item.id } }), 0);
 });
 
 test("insufficient stock does not change quantity or history", async () => {
   const result = await adjustStock("ZAP-ITEM-race", "REMOVE", 6, staff, "short-stock-01");
-  assert.equal("error" in result && result.error, "Only 5 in stock.");
-  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
+  assert.equal("error" in result && result.error, "Only 5 in stock at Stockroom.");
+  const item = await counted("ZAP-ITEM-race");
   assert.equal(item.quantity, 5);
-  assert.equal(await prisma.history.count({ where: { itemId: item.id } }), 0);
+  assert.equal(await prisma.history.count({ where: { itemId: item.item.id } }), 0);
 });
 
 test("a repeated submission records one movement", async () => {
@@ -195,11 +205,12 @@ test("a repeated submission records one movement", async () => {
   const second = await adjustStock("ZAP-ITEM-race", "REMOVE", 1, staff, "repeat-submit-1", "floor count");
   assert.equal("item" in first && first.item.quantity, 4);
   assert.equal("item" in second && second.item.quantity, 4);
-  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
-  const rows = await prisma.history.findMany({ where: { itemId: item.id } });
+  const item = await counted("ZAP-ITEM-race");
+  const rows = await prisma.history.findMany({ where: { itemId: item.item.id } });
   assert.equal(item.quantity, 4);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.userId, staff.id);
+  assert.equal(rows[0]?.locationName, "Stockroom");
   assert.equal(rows[0]?.actorName, "Haven");
   assert.equal(rows[0]?.action, "REMOVE");
   assert.equal(rows[0]?.amount, 1);
@@ -211,7 +222,7 @@ test("a repeated submission records one movement", async () => {
 });
 
 test("concurrent deductions cannot go negative or drop an update", async () => {
-  const starting = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
+  const starting = await counted("ZAP-ITEM-race");
   const results = await Promise.all([
     adjustStock("ZAP-ITEM-race", "REMOVE", 2, staff, "race-a-00001"),
     adjustStock("ZAP-ITEM-race", "REMOVE", 2, manager, "race-b-00002"),
@@ -219,9 +230,9 @@ test("concurrent deductions cannot go negative or drop an update", async () => {
   ]);
   const successes = results.filter((result) => "item" in result);
   const failures = results.filter((result) => "error" in result);
-  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
+  const item = await counted("ZAP-ITEM-race");
   const rows = await prisma.history.findMany({
-    where: { itemId: item.id, action: "REMOVE", amount: 2 },
+    where: { itemId: item.item.id, action: "REMOVE", amount: 2 },
     orderBy: { quantityAfter: "desc" },
   });
   assert.equal(successes.length, 2);
@@ -237,15 +248,25 @@ test("concurrent deductions cannot go negative or drop an update", async () => {
   assert.equal(starting.quantity - removed, item.quantity);
 
   const raw = new Database(testDatabasePath);
-  raw.prepare("UPDATE Item SET quantity = 3 WHERE qrCodeData = ?").run("ZAP-ITEM-race");
+  raw
+    .prepare(
+      "UPDATE StockBalance SET quantity = 3 WHERE itemId = (SELECT id FROM Item WHERE qrCodeData = ?)"
+    )
+    .run("ZAP-ITEM-race");
   const deduct = raw.transaction(() => {
     return raw
-      .prepare("UPDATE Item SET quantity = quantity - 2 WHERE qrCodeData = ? AND quantity >= 2")
+      .prepare(
+        "UPDATE StockBalance SET quantity = quantity - 2 WHERE itemId = (SELECT id FROM Item WHERE qrCodeData = ?) AND quantity >= 2"
+      )
       .run("ZAP-ITEM-race").changes;
   });
   const firstChange = deduct.immediate();
   const secondChange = deduct.immediate();
-  const after = raw.prepare("SELECT quantity FROM Item WHERE qrCodeData = ?").get("ZAP-ITEM-race") as {
+  const after = raw
+    .prepare(
+      "SELECT quantity FROM StockBalance WHERE itemId = (SELECT id FROM Item WHERE qrCodeData = ?)"
+    )
+    .get("ZAP-ITEM-race") as {
     quantity: number;
   };
   raw.close();
@@ -255,23 +276,23 @@ test("concurrent deductions cannot go negative or drop an update", async () => {
 });
 
 test("corrections require a reason and do not overwrite a conflicting count", async () => {
-  const item = await prisma.item.findUniqueOrThrow({ where: { qrCodeData: "ZAP-ITEM-race" } });
-  const missingReason = await correctStock(item.id, 3, item.quantity, "  ", "correct-blank-1", manager);
+  const item = await counted("ZAP-ITEM-race");
+  const missingReason = await correctStock(item.item.id, 3, item.quantity, "  ", "correct-blank-1", manager);
   assert.equal("error" in missingReason && missingReason.error, "A reason is required.");
 
-  const conflict = await correctStock(item.id, 3, item.quantity + 5, "shelf count", "correct-stale-1", manager);
+  const conflict = await correctStock(item.item.id, 3, item.quantity + 5, "shelf count", "correct-stale-1", manager);
   assert.equal(
     "error" in conflict && conflict.error,
     "Stock changed on another device. Reload and try again."
   );
 
-  const saved = await correctStock(item.id, 3, item.quantity, "shelf count", "correct-ok-0001", manager);
+  const saved = await correctStock(item.item.id, 3, item.quantity, "shelf count", "correct-ok-0001", manager);
   assert.equal("item" in saved && saved.item.quantity, 3);
-  const again = await correctStock(item.id, 3, item.quantity, "shelf count", "correct-ok-0001", manager);
+  const again = await correctStock(item.item.id, 3, item.quantity, "shelf count", "correct-ok-0001", manager);
   assert.equal("item" in again && again.item.quantity, 3);
 
-  const updated = await prisma.item.findUniqueOrThrow({ where: { id: item.id } });
-  const audit = await prisma.history.findMany({ where: { itemId: item.id, action: "AUDIT" } });
+  const updated = await counted("ZAP-ITEM-race");
+  const audit = await prisma.history.findMany({ where: { itemId: item.item.id, action: "AUDIT" } });
   assert.equal(updated.quantity, 3);
   assert.equal(audit.length, 1);
   assert.equal(audit[0]?.quantityBefore, item.quantity);
@@ -323,7 +344,6 @@ test("editing item details keeps quantity and the opening movement", async () =>
     sku: "PL-1",
     description: "Prize",
     threshold: 2,
-    locationId: location.id,
     categoryId: category.id,
     receivedAt: new Date("2026-10-22T12:00:00.000Z"),
     outOfStockAt: null,
@@ -333,9 +353,13 @@ test("editing item details keeps quantity and the opening movement", async () =>
   const saved = await saveItemDetails(manager, "item-created", details);
   assert.equal("saved" in saved && saved.quantity, 4);
 
-  const item = await prisma.item.findUniqueOrThrow({ where: { id: "item-created" } });
+  const item = await prisma.item.findUniqueOrThrow({
+    where: { id: "item-created" },
+    include: { balances: true },
+  });
   const history = await prisma.history.findMany({ where: { itemId: item.id } });
-  assert.equal(item.quantity, 4);
+  assert.equal(item.balances.reduce((sum, balance) => sum + balance.quantity, 0), 4);
+  assert.equal(history[0]?.locationName, "Stockroom");
   assert.equal(item.name, "Plush bear");
   assert.equal(history.length, 1);
   assert.equal(history[0]?.action, "NEW_ITEM");

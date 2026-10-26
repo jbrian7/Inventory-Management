@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 
 import { PrintLabelButton } from "@/app/items/print-label-button";
 import { StockCorrection } from "@/app/items/stock-correction";
+import { TransferForm } from "@/app/items/transfer-form";
 import { Button } from "@/components/ui/button";
+import { locationSummary, totalQuantity } from "@/lib/balances";
 import { getCurrentUser } from "@/lib/current-user";
 import { formatItemDate } from "@/lib/item-dates";
 import {
@@ -14,6 +16,7 @@ import {
 } from "@/lib/movement";
 import { prisma } from "@/lib/prisma";
 import { canEditInventory } from "@/lib/roles";
+import { scanAccessError } from "@/lib/access";
 import { cn } from "@/lib/utils";
 
 export default async function ItemDetailsPage({
@@ -21,12 +24,13 @@ export default async function ItemDetailsPage({
 }: {
   params: { id: string };
 }) {
-  const [user, item, movements] = await Promise.all([
+  const [user, item, places, movements] = await Promise.all([
     getCurrentUser(),
     prisma.item.findUnique({
       where: { id: params.id },
-      include: { location: true, category: true },
+      include: { category: true, balances: { include: { location: true } } },
     }),
+    prisma.location.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.history.findMany({
       where: { itemId: params.id },
       include: { user: { select: { name: true } } },
@@ -39,7 +43,20 @@ export default async function ItemDetailsPage({
   }
 
   const canEdit = user ? canEditInventory(user.role) : false;
-  const lowStock = !item.isManualOos && item.quantity <= item.threshold;
+  const canTransfer = user ? scanAccessError(user) === null : false;
+  const balances = item.balances
+    .map((balance) => ({
+      locationId: balance.locationId,
+      name: balance.location.name,
+      quantity: balance.quantity,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const quantity = totalQuantity(balances);
+  const lowStock = !item.isManualOos && quantity <= item.threshold;
+  const shownPlaces = places.map((place) => {
+    const balance = balances.find((row) => row.locationId === place.id);
+    return { locationId: place.id, name: place.name, quantity: balance?.quantity ?? 0 };
+  });
   const received = formatItemDate(item.receivedAt);
   const outOfStock = formatItemDate(item.outOfStockAt);
 
@@ -61,14 +78,14 @@ export default async function ItemDetailsPage({
 
       <dl className="grid gap-3 rounded-xl border bg-card p-4 text-sm">
         <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-muted-foreground">In stock</dt>
+          <dt className="text-muted-foreground">Total inventory</dt>
           <dd
             className={cn(
               "text-3xl font-semibold tabular-nums",
               lowStock && "text-red-700"
             )}
           >
-            {item.quantity}
+            {quantity}
           </dd>
         </div>
         <div className="flex justify-between gap-3">
@@ -76,8 +93,8 @@ export default async function ItemDetailsPage({
           <dd>{item.threshold}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Location</dt>
-          <dd>{item.location.name}</dd>
+          <dt className="text-muted-foreground">Locations</dt>
+          <dd>{locationSummary(balances)}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">Category</dt>
@@ -107,6 +124,18 @@ export default async function ItemDetailsPage({
         </div>
       </dl>
 
+      <section aria-label="Location balances" className="rounded-xl border bg-card">
+        <h2 className="border-b px-4 py-3 text-base font-semibold">By location</h2>
+        <ul>
+          {shownPlaces.map((place) => (
+            <li key={place.locationId} className="flex items-baseline justify-between gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+              <span>{place.name}</span>
+              <span className="text-lg font-semibold tabular-nums">{place.quantity}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {lowStock ? (
         <p className="text-sm font-medium text-red-700">
           Low stock · threshold {item.threshold}
@@ -119,7 +148,11 @@ export default async function ItemDetailsPage({
         </Button>
       ) : null}
 
-      {canEdit ? <StockCorrection itemId={item.id} quantity={item.quantity} /> : null}
+      {canTransfer ? (
+        <TransferForm itemId={item.id} itemName={item.name} places={places} balances={balances} />
+      ) : null}
+
+      {canEdit ? <StockCorrection itemId={item.id} locations={balances} /> : null}
 
       <PrintLabelButton itemId={item.id} />
 
@@ -137,8 +170,14 @@ export default async function ItemDetailsPage({
             {movements.map((entry) => (
               <li key={entry.id} className="border-b py-3 text-sm last:border-b-0">
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-medium">{movementTitle(entry)}</p>
-                  <p className="text-muted-foreground">{movementActorLabel(entry.user)}</p>
+                  <p className="font-medium">
+                    {entry.action === "TRANSFER"
+                      ? `${movementActorLabel(entry)} transferred ${entry.amount} ${item.name}`
+                      : movementTitle(entry)}
+                  </p>
+                  {entry.action === "TRANSFER" ? null : (
+                    <p className="text-muted-foreground">{movementActorLabel(entry)}</p>
+                  )}
                 </div>
                 <p className="text-muted-foreground">{movementQuantityLine(entry)}</p>
                 {entry.reason ? <p>{entry.reason}</p> : null}

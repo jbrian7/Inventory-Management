@@ -35,6 +35,7 @@ export function ItemForm({
   categories,
   submitLabel,
   lockQuantity = false,
+  includeLocation = true,
 }: {
   action: (payload: FormData) => void;
   state: ItemFormState;
@@ -43,12 +44,13 @@ export function ItemForm({
   categories: { id: string; name: string }[];
   submitLabel: string;
   lockQuantity?: boolean;
+  includeLocation?: boolean;
 }) {
   const [receivedAt, setReceivedAt] = useState(defaults.receivedAt);
   const [outOfStockAt, setOutOfStockAt] = useState(defaults.outOfStockAt);
   const [manualOos, setManualOos] = useState(defaults.isManualOos);
   const [requestId] = useState(() => crypto.randomUUID());
-  const ready = locations.length > 0 && categories.length > 0;
+  const ready = categories.length > 0 && (!includeLocation || locations.length > 0);
 
   function onManualOos(checked: boolean) {
     setManualOos(checked);
@@ -79,7 +81,7 @@ export function ItemForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="quantity">Quantity</Label>
+          <Label htmlFor="quantity">{lockQuantity ? "Total on hand" : "Opening quantity"}</Label>
           {lockQuantity ? (
             <p id="quantity" className="flex h-12 items-center text-2xl font-semibold tabular-nums">
               {defaults.quantity}
@@ -111,23 +113,25 @@ export function ItemForm({
           />
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="locationId">Location</Label>
-        <select
-          id="locationId"
-          name="locationId"
-          required
-          defaultValue={defaults.locationId}
-          disabled={locations.length === 0}
-          className={selectClass}
-        >
-          {locations.map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {includeLocation ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="locationId">Opening location</Label>
+          <select
+            id="locationId"
+            name="locationId"
+            required
+            defaultValue={defaults.locationId}
+            disabled={locations.length === 0}
+            className={selectClass}
+          >
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-2">
         <Label htmlFor="categoryId">Category</Label>
         <select

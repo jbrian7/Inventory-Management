@@ -1,4 +1,5 @@
 import { inventoryAccessError, scanAccessError, type AccessUser } from "@/lib/access";
+import { balancesFromRows, locationSummary, totalQuantity, type BalanceView } from "@/lib/balances";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { isStockAction } from "@/lib/movement";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +11,8 @@ export type StockItem = {
   quantity: number;
   threshold: number;
   location: string;
+  locations: BalanceView[];
+  directory: { id: string; name: string }[];
   qrCodeData: string;
 };
 
@@ -19,27 +22,34 @@ export type StockDirection = "ADD" | "REMOVE";
 
 export type StockActor = AccessUser & { id?: string };
 
-const itemWithLocation = { location: true } as const;
 const maxAmount = 100000;
 const attempts = 3;
 const transactionOptions = { maxWait: 15000, timeout: 15000 };
 
-function toStockItem(item: {
+const balanceInclude = {
+  balances: { include: { location: true } },
+} as const;
+
+type ItemWithBalances = {
   id: string;
   name: string;
   sku: string;
-  quantity: number;
   threshold: number;
-  location: { name: string };
   qrCodeData: string;
-}): StockItem {
+  balances: { locationId: string; quantity: number; location: { name: string } }[];
+};
+
+export function toStockItem(item: ItemWithBalances, directory: { id: string; name: string }[]): StockItem {
+  const locations = balancesFromRows(item.balances);
   return {
     id: item.id,
     name: item.name,
     sku: item.sku,
-    quantity: item.quantity,
+    quantity: totalQuantity(locations),
     threshold: item.threshold,
-    location: item.location.name,
+    location: locationSummary(locations),
+    locations,
+    directory,
     qrCodeData: item.qrCodeData,
   };
 }
@@ -99,29 +109,49 @@ function duplicateRequest(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
-async function replay(requestId: string, db: typeof prisma): Promise<StockResult | null> {
-  const prior = await db.history.findUnique({
-    where: { requestId },
-    include: { item: { include: itemWithLocation } },
-  });
-  if (!prior?.item) {
-    return null;
-  }
-  return { item: toStockItem(prior.item) };
+async function directoryOf(db: Pick<typeof prisma, "location">) {
+  const places = await db.location.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  return places;
 }
 
-export function openingMovement(userId: string, actorName: string, quantity: number, requestId: string) {
+export async function loadStockItem(db: Pick<typeof prisma, "item" | "location">, itemId: string) {
+  const item = await db.item.findUnique({ where: { id: itemId }, include: balanceInclude });
+  if (!item) {
+    return null;
+  }
+  return toStockItem(item, await directoryOf(db));
+}
+
+export async function replayStockItem(
+  requestId: string,
+  db: Pick<typeof prisma, "history" | "item" | "location">
+): Promise<StockResult | null> {
+  const prior = await db.history.findUnique({ where: { requestId } });
+  if (!prior) {
+    return null;
+  }
+  const item = await loadStockItem(db, prior.itemId);
+  return item ? { item } : null;
+}
+
+export function openingMovement(
+  userId: string,
+  actorName: string,
+  quantity: number,
+  requestId: string,
+  locationName: string
+) {
   if (!parseRequestId(requestId) || parseQuantity(quantity) === null) {
     throw new Error("Invalid opening stock.");
   }
-  const name = actorName.trim() || "Unknown";
   return {
     action: "NEW_ITEM",
     amount: quantity,
     quantityBefore: 0,
     quantityAfter: quantity,
+    locationName,
     userId,
-    actorName: name,
+    actorName: actorName.trim() || "Unknown",
     requestId,
     reason: null,
   };
@@ -144,13 +174,13 @@ export async function findItemByQr(qrCodeData: string, user: AccessUser | null):
 
   const item = await prisma.item.findUnique({
     where: { qrCodeData: code },
-    include: itemWithLocation,
+    include: balanceInclude,
   });
   if (!item) {
     return { error: "No item matches this QR code." };
   }
 
-  return { item: toStockItem(item) };
+  return { item: toStockItem(item, await directoryOf(prisma)) };
 }
 
 export async function adjustStock(
@@ -160,7 +190,8 @@ export async function adjustStock(
   user: StockActor | null,
   requestId?: unknown,
   reason?: unknown,
-  db: typeof prisma = prisma
+  db: typeof prisma = prisma,
+  locationId?: string
 ): Promise<StockResult> {
   const denied = scanAccessError(user);
   if (denied) {
@@ -185,7 +216,6 @@ export async function adjustStock(
   if ("error" in note && note.error) {
     return { error: note.error };
   }
-  const noteReason = note.reason ?? null;
   const code = qrCodeData.trim();
   if (!code) {
     return { error: "That QR code was empty." };
@@ -199,11 +229,12 @@ export async function adjustStock(
         amount: change,
         userId: user.id,
         requestId: submission,
-        reason: noteReason,
+        reason: note.reason ?? null,
+        locationId: locationId?.trim() || undefined,
       });
     } catch (error) {
       if (duplicateRequest(error)) {
-        const prior = await replay(submission, db);
+        const prior = await replayStockItem(submission, db);
         if (prior) {
           return prior;
         }
@@ -220,6 +251,8 @@ export async function adjustStock(
   return { error: "Stock changed on another device. Reload and try again." };
 }
 
+class StockRejected extends Error {}
+
 async function applyAdjustment(
   db: typeof prisma,
   input: {
@@ -229,69 +262,113 @@ async function applyAdjustment(
     userId: string;
     requestId: string;
     reason: string | null;
+    locationId?: string;
   }
 ): Promise<StockResult> {
-  return db.$transaction(async (tx) => {
-    // Take the write lock before any read so two devices cannot deadlock on SQLite.
-    await tx.$executeRawUnsafe(
-      "UPDATE Item SET quantity = quantity WHERE qrCodeData = ?",
-      input.code
-    );
-    const prior = await tx.history.findUnique({
-      where: { requestId: input.requestId },
-      include: { item: { include: itemWithLocation } },
-    });
-    if (prior?.item) {
-      return { item: toStockItem(prior.item) };
-    }
+  try {
+    return await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("UPDATE Item SET sku = sku WHERE qrCodeData = ?", input.code);
+      const prior = await replayStockItem(input.requestId, tx as unknown as typeof prisma);
+      if (prior) {
+        return prior;
+      }
 
-    const current = await tx.item.findUnique({
-      where: { qrCodeData: input.code },
-      include: itemWithLocation,
-    });
-    if (!current) {
-      return { error: "No item matches this QR code." };
-    }
-
-    const changed =
-      input.action === "ADD"
-        ? await tx.item.updateMany({
-            where: { id: current.id },
-            data: { quantity: { increment: input.amount } },
-          })
-        : await tx.item.updateMany({
-            where: { id: current.id, quantity: { gte: input.amount } },
-            data: { quantity: { decrement: input.amount } },
-          });
-    if (changed.count !== 1) {
-      const latest = await tx.item.findUnique({ where: { id: current.id } });
-      if (!latest) {
+      const current = await tx.item.findUnique({
+        where: { qrCodeData: input.code },
+        include: balanceInclude,
+      });
+      if (!current) {
         return { error: "No item matches this QR code." };
       }
-      return { error: `Only ${latest.quantity} in stock.` };
-    }
 
-    const updated = await tx.item.findUniqueOrThrow({
-      where: { id: current.id },
-      include: itemWithLocation,
-    });
-    const quantityBefore =
-      input.action === "ADD" ? updated.quantity - input.amount : updated.quantity + input.amount;
-    await tx.history.create({
-      data: {
-        itemId: updated.id,
-        userId: input.userId,
-        actorName: await actorSnapshot(tx, input.userId),
-        action: input.action,
-        amount: input.amount,
-        quantityBefore,
-        quantityAfter: updated.quantity,
-        reason: input.reason,
-        requestId: input.requestId,
-      },
-    });
-    return { item: toStockItem(updated) };
-  }, transactionOptions);
+      const chosen = await chooseBalance(tx as unknown as typeof prisma, current, input.locationId, input.action);
+      if ("error" in chosen) {
+        return chosen;
+      }
+
+      const before = chosen.quantity;
+      if (input.action === "ADD" && before + input.amount > maxAmount) {
+        throw new StockRejected("That amount is too large.");
+      }
+      const changed =
+        input.action === "ADD"
+          ? await tx.stockBalance.updateMany({
+              where: { itemId: current.id, locationId: chosen.locationId },
+              data: { quantity: { increment: input.amount } },
+            })
+          : await tx.stockBalance.updateMany({
+              where: {
+                itemId: current.id,
+                locationId: chosen.locationId,
+                quantity: { gte: input.amount },
+              },
+              data: { quantity: { decrement: input.amount } },
+            });
+      if (changed.count !== 1) {
+        throw new StockRejected(`Only ${before} in stock at ${chosen.name}.`);
+      }
+
+      const after = input.action === "ADD" ? before + input.amount : before - input.amount;
+      await tx.history.create({
+        data: {
+          itemId: current.id,
+          userId: input.userId,
+          actorName: await actorSnapshot(tx, input.userId),
+          action: input.action,
+          amount: input.amount,
+          quantityBefore: before,
+          quantityAfter: after,
+          locationName: chosen.name,
+          reason: input.reason,
+          requestId: input.requestId,
+        },
+      });
+      const item = await loadStockItem(tx as unknown as typeof prisma, current.id);
+      if (!item) {
+        return { error: "No item matches this QR code." };
+      }
+      return { item };
+    }, transactionOptions);
+  } catch (error) {
+    if (error instanceof StockRejected) {
+      return { error: error.message };
+    }
+    throw error;
+  }
+}
+
+async function chooseBalance(
+  db: Pick<typeof prisma, "location" | "stockBalance">,
+  item: ItemWithBalances,
+  locationId: string | undefined,
+  action: StockDirection
+): Promise<BalanceView | { error: string }> {
+  const locations = balancesFromRows(item.balances);
+  if (!locationId) {
+    if (locations.length === 1 && locations[0]) {
+      return locations[0];
+    }
+    if (locations.length === 0) {
+      return { error: "This item has no stock location." };
+    }
+    return { error: "Choose a location." };
+  }
+
+  const existing = locations.find((location) => location.locationId === locationId);
+  if (existing) {
+    return existing;
+  }
+  if (action === "REMOVE") {
+    return { error: "Only 0 in stock at that location." };
+  }
+  const place = await db.location.findUnique({ where: { id: locationId } });
+  if (!place) {
+    return { error: "That location does not exist." };
+  }
+  await db.stockBalance.create({
+    data: { itemId: item.id, locationId: place.id, quantity: 0 },
+  });
+  return { locationId: place.id, name: place.name, quantity: 0 };
 }
 
 export async function correctStock(
@@ -301,7 +378,8 @@ export async function correctStock(
   reason: unknown,
   requestId: unknown,
   user: StockActor | null,
-  db: typeof prisma = prisma
+  db: typeof prisma = prisma,
+  locationId?: string
 ): Promise<StockResult> {
   const denied = inventoryAccessError(user, "edit");
   if (denied) {
@@ -344,10 +422,11 @@ export async function correctStock(
         reason: noteReason,
         requestId: submission,
         userId: user.id,
+        locationId: locationId?.trim() || undefined,
       });
     } catch (error) {
       if (duplicateRequest(error)) {
-        const prior = await replay(submission, db);
+        const prior = await replayStockItem(submission, db);
         if (prior) {
           return prior;
         }
@@ -373,47 +452,71 @@ async function applyCorrection(
     reason: string;
     requestId: string;
     userId: string;
+    locationId?: string;
   }
 ): Promise<StockResult> {
-  return db.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe("UPDATE Item SET quantity = quantity WHERE id = ?", input.id);
-    const prior = await tx.history.findUnique({
-      where: { requestId: input.requestId },
-      include: { item: { include: itemWithLocation } },
-    });
-    if (prior?.item) {
-      return { item: toStockItem(prior.item) };
-    }
+  try {
+    return await db.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("UPDATE Item SET sku = sku WHERE id = ?", input.id);
+      const prior = await replayStockItem(input.requestId, tx as unknown as typeof prisma);
+      if (prior) {
+        return prior;
+      }
 
-    const changed = await tx.item.updateMany({
-      where: { id: input.id, quantity: input.expected },
-      data: { quantity: input.next },
-    });
-    if (changed.count !== 1) {
-      const latest = await tx.item.findUnique({ where: { id: input.id } });
-      if (!latest) {
+      const current = await tx.item.findUnique({
+        where: { id: input.id },
+        include: balanceInclude,
+      });
+      if (!current) {
         return { error: "That item no longer exists." };
       }
-      return { error: "Stock changed on another device. Reload and try again." };
-    }
+      const locations = balancesFromRows(current.balances);
+      const chosen = input.locationId
+        ? locations.find((location) => location.locationId === input.locationId)
+        : locations.length === 1
+          ? locations[0]
+          : undefined;
+      if (!chosen) {
+        return {
+          error: locations.length > 1 ? "Choose a location." : "This item has no stock location.",
+        };
+      }
+      if (chosen.quantity !== input.expected) {
+        return { error: "Stock changed on another device. Reload and try again." };
+      }
 
-    const updated = await tx.item.findUniqueOrThrow({
-      where: { id: input.id },
-      include: itemWithLocation,
-    });
-    await tx.history.create({
-      data: {
-        itemId: updated.id,
-        userId: input.userId,
-        actorName: await actorSnapshot(tx, input.userId),
-        action: "AUDIT",
-        amount: Math.abs(input.next - input.expected),
-        quantityBefore: input.expected,
-        quantityAfter: input.next,
-        reason: input.reason,
-        requestId: input.requestId,
-      },
-    });
-    return { item: toStockItem(updated) };
-  }, transactionOptions);
+      const changed = await tx.stockBalance.updateMany({
+        where: { itemId: current.id, locationId: chosen.locationId, quantity: input.expected },
+        data: { quantity: input.next },
+      });
+      if (changed.count !== 1) {
+        throw new StockRejected("Stock changed on another device. Reload and try again.");
+      }
+
+      await tx.history.create({
+        data: {
+          itemId: current.id,
+          userId: input.userId,
+          actorName: await actorSnapshot(tx, input.userId),
+          action: "AUDIT",
+          amount: Math.abs(input.next - input.expected),
+          quantityBefore: input.expected,
+          quantityAfter: input.next,
+          locationName: chosen.name,
+          reason: input.reason,
+          requestId: input.requestId,
+        },
+      });
+      const item = await loadStockItem(tx as unknown as typeof prisma, current.id);
+      if (!item) {
+        return { error: "That item no longer exists." };
+      }
+      return { item };
+    }, transactionOptions);
+  } catch (error) {
+    if (error instanceof StockRejected) {
+      return { error: error.message };
+    }
+    throw error;
+  }
 }

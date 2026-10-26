@@ -20,10 +20,11 @@ export async function updateStock(
   direction: StockDirection,
   amount: number,
   requestId: string,
-  reason?: string
+  reason?: string,
+  locationId?: string
 ): Promise<StockResult> {
   const user = await getCurrentUser();
-  const result = await adjustStock(qrCodeData, direction, amount, user, requestId, reason);
+  const result = await adjustStock(qrCodeData, direction, amount, user, requestId, reason, undefined, locationId);
   if ("item" in result) {
     revalidatePath("/items");
     revalidatePath("/");

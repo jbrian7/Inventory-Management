@@ -53,7 +53,7 @@ export async function HomeDashboard() {
             Low stock
           </CardTitle>
           <CardDescription>
-            Items at or below their threshold. Manually marked out of stock are not listed here.
+            Items whose total across locations is at or below their threshold. Manually marked out of stock are not listed here.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -114,7 +114,7 @@ export async function HomeDashboard() {
                   </Link>
                   <span className="text-muted-foreground">{entry.actor}</span>
                 </div>
-                <p>{entry.title}</p>
+                <p>{entry.sentence ?? entry.title}</p>
                 <p className="text-muted-foreground">{entry.quantityLine}</p>
                 {entry.reason ? <p>{entry.reason}</p> : null}
                 <p className="text-xs text-muted-foreground">{entry.time}</p>

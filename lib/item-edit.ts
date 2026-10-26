@@ -1,4 +1,5 @@
 import { inventoryAccessError, type AccessUser } from "@/lib/access";
+import { totalQuantity } from "@/lib/balances";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { openingMovement } from "@/lib/stock";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +9,6 @@ export type CatalogInput = {
   sku: string;
   description: string | null;
   threshold: number;
-  locationId: string;
   categoryId: string;
   receivedAt: Date;
   outOfStockAt: Date | null;
@@ -21,7 +21,6 @@ export function catalogData(input: CatalogInput) {
     sku: input.sku,
     description: input.description,
     threshold: input.threshold,
-    locationId: input.locationId,
     categoryId: input.categoryId,
     receivedAt: input.receivedAt,
     outOfStockAt: input.outOfStockAt,
@@ -39,7 +38,7 @@ function duplicateTarget(error: unknown) {
 
 export async function createStockedItem(
   user: { id: string },
-  input: CatalogInput & { id: string; qrCodeData: string; quantity: number; requestId: string }
+  input: CatalogInput & { id: string; qrCodeData: string; quantity: number; requestId: string; locationId: string }
 ) {
   try {
     const item = await prisma.$transaction(async (tx) => {
@@ -50,18 +49,33 @@ export async function createStockedItem(
       if (prior?.item) {
         return prior.item;
       }
+      const location = await tx.location.findUnique({ where: { id: input.locationId } });
+      if (!location) {
+        return null;
+      }
       const actor = await tx.user.findUnique({ where: { id: user.id }, select: { name: true } });
-      const history = openingMovement(user.id, actor?.name ?? "", input.quantity, input.requestId);
+      const history = openingMovement(
+        user.id,
+        actor?.name ?? "",
+        input.quantity,
+        input.requestId,
+        location.name
+      );
       return tx.item.create({
         data: {
           id: input.id,
           ...catalogData(input),
-          quantity: input.quantity,
           qrCodeData: input.qrCodeData,
+          balances: {
+            create: { locationId: location.id, quantity: input.quantity },
+          },
           History: { create: history },
         },
       });
     });
+    if (!item) {
+      return { error: "Choose a location that exists." };
+    }
     return { name: item.name, qrCodeData: item.qrCodeData };
   } catch (error) {
     const target = duplicateTarget(error);
@@ -101,8 +115,9 @@ export async function saveItemDetails(
     const item = await prisma.item.update({
       where: { id },
       data: catalogData(input),
+      include: { balances: { select: { quantity: true } } },
     });
-    return { saved: true as const, name: item.name, quantity: item.quantity };
+    return { saved: true as const, name: item.name, quantity: totalQuantity(item.balances) };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "That SKU is already in use." };

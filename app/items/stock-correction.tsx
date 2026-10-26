@@ -10,23 +10,36 @@ import { Label } from "@/components/ui/label";
 
 const initialState: CorrectionState = {};
 
-function SaveButton() {
+const selectClass = "h-12 w-full rounded-md border border-input bg-transparent px-3 text-base";
+
+function SaveButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="h-12" disabled={pending}>
+    <Button type="submit" className="h-12" disabled={disabled || pending}>
       {pending ? "Saving…" : "Correct stock"}
     </Button>
   );
 }
 
-export function StockCorrection({ itemId, quantity }: { itemId: string; quantity: number }) {
+export function StockCorrection({
+  itemId,
+  locations,
+}: {
+  itemId: string;
+  locations: { locationId: string; name: string; quantity: number }[];
+}) {
   const [state, action] = useFormState(correctItemQuantity, initialState);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-  const [counted, setCounted] = useState(String(quantity));
+  const [locationId, setLocationId] = useState(locations.length === 1 ? locations[0]?.locationId ?? "" : "");
+  const selected = locations.find((location) => location.locationId === locationId);
+  const expected = selected?.quantity ?? 0;
+  const [counted, setCounted] = useState(selected ? String(selected.quantity) : "");
 
   useEffect(() => {
-    setCounted(String(quantity));
-  }, [quantity]);
+    if (selected) {
+      setCounted(String(selected.quantity));
+    }
+  }, [selected]);
 
   useEffect(() => {
     if (state.saved) {
@@ -39,12 +52,40 @@ export function StockCorrection({ itemId, quantity }: { itemId: string; quantity
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Correct stock</h2>
         <p className="text-sm text-muted-foreground">
-          Enter the counted quantity and a reason. This writes an audited movement.
+          Count one location and give a reason. This writes an audited movement for that location.
         </p>
       </div>
       <input type="hidden" name="id" value={itemId} />
-      <input type="hidden" name="expectedQuantity" value={quantity} />
+      <input type="hidden" name="expectedQuantity" value={expected} />
+      <input type="hidden" name="locationId" value={locationId} />
       <input type="hidden" name="requestId" value={requestId} />
+      {locations.length === 0 ? (
+        <p className="text-sm text-muted-foreground">This item has no stock location.</p>
+      ) : null}
+      {locations.length > 1 ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="correct-location">Location</Label>
+          <select
+            id="correct-location"
+            className={selectClass}
+            value={locationId}
+            onChange={(event) => setLocationId(event.target.value)}
+            required
+          >
+            <option value="">Choose a location</option>
+            {locations.map((location) => (
+              <option key={location.locationId} value={location.locationId}>
+                {location.name} ({location.quantity})
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {locations.length === 1 && selected ? (
+        <p className="text-sm text-muted-foreground">
+          {selected.name} · {selected.quantity} on hand
+        </p>
+      ) : null}
       <div className="flex flex-col gap-2">
         <Label htmlFor="correct-quantity">Counted quantity</Label>
         <Input
@@ -57,6 +98,7 @@ export function StockCorrection({ itemId, quantity }: { itemId: string; quantity
           value={counted}
           onChange={(event) => setCounted(event.target.value)}
           className="h-12"
+          disabled={!selected}
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -73,7 +115,7 @@ export function StockCorrection({ itemId, quantity }: { itemId: string; quantity
           {state.error}
         </p>
       ) : null}
-      <SaveButton />
+      <SaveButton disabled={!selected} />
     </form>
   );
 }

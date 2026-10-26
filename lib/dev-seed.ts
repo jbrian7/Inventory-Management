@@ -136,14 +136,17 @@ export async function seedDevelopmentData(db: SeedDb = prisma) {
         name: item.name,
         sku: item.sku,
         description: item.description,
-        quantity: item.quantity,
         threshold: item.threshold,
         qrCodeData: item.qrCodeData,
         createdAt: item.createdAt,
         receivedAt: item.createdAt,
-        locationId: location.id,
         categoryId: defaultCategory.id,
       },
+    });
+    await db.stockBalance.upsert({
+      where: { itemId_locationId: { itemId: item.id, locationId: location.id } },
+      update: {},
+      create: { itemId: item.id, locationId: location.id, quantity: item.quantity },
     });
   }
 
