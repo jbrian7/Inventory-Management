@@ -3,6 +3,7 @@
 import cuid from "cuid";
 import { revalidatePath } from "next/cache";
 
+import { itemQrPayload } from "@/lib/brand";
 import { getCurrentUser } from "@/lib/current-user";
 import { createStockedItem, saveItemDetails } from "@/lib/item-edit";
 import { parseDateInput, todayDateInput } from "@/lib/item-dates";
@@ -152,7 +153,7 @@ export async function createItem(
   }
 
   const id = cuid();
-  const qrCodeData = `ZAP-ITEM-${id}`;
+  const qrCodeData = itemQrPayload(id);
   const created = await createStockedItem(user, {
     ...parsed.fields,
     quantity,

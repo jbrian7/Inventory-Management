@@ -1,3 +1,4 @@
+import { businessName } from "@/lib/brand";
 import { canManageSettings, isRole } from "@/lib/roles";
 
 export type PrintUser = { role: string; active: boolean } | null;
@@ -260,5 +261,5 @@ export async function prepareTestPrint(
   if (denied) {
     return { printed: false, error: denied };
   }
-  return send({ name: "Zap Zone test", sku: "TEST", qrData: "ZAP-TEST" });
+  return send({ name: `${businessName()} test`, sku: "TEST", qrData: "ZAP-TEST" });
 }

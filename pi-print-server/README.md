@@ -1,4 +1,4 @@
-# Zap Zone print server
+# Inventory Manager print server
 
 Small Express server for the Raspberry Pi that sits next to the thermal label printer.
 
@@ -45,7 +45,7 @@ Until `LP_DEST` names a CUPS queue, the server returns `printed: false` and `sta
 LP_DEST=ZapZone PRINT_TOKEN="$PRINT_TOKEN" npm start
 ```
 
-`print-command.js` then runs `lp -d "$LP_DEST" <label.png>`. A successful `lp` exit means CUPS accepted the job. It does not prove the label came out of the printer. The queue name may contain letters, numbers, hyphens, and underscores. Change that file if the Pi should call a different command. The label still encodes the same `qrData` string the app stores, including values such as `ZAP-ITEM-<id>`.
+`print-command.js` then runs `lp -d "$LP_DEST" <label.png>`. A successful `lp` exit means CUPS accepted the job. It does not prove the label came out of the printer. The queue name may contain letters, numbers, hyphens, and underscores. `ZapZone` in the examples is this store's CUPS queue name, not the product name. Change that file if the Pi should call a different command. The label still encodes the same `qrData` string the app stores, including values such as `ZAP-ITEM-<id>`.
 
 If `lp` is missing, the response says CUPS is not available. If the queue does not answer, the response says the printer is offline. Neither case sets `printed: true`.
 
