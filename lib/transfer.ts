@@ -7,10 +7,11 @@ import {
   parseAmount,
   parseReason,
   parseRequestId,
-  replayStockItem,
   type StockActor,
   type StockResult,
 } from "@/lib/stock";
+
+const reusedRequest = "That request was already used for a different transfer.";
 
 class TransferRejected extends Error {}
 
@@ -88,7 +89,13 @@ export async function transferStock(
         return { error: error.message };
       }
       if (duplicateRequest(error)) {
-        const prior = await replayStockItem(submission, db);
+        const prior = await replayTransfer(db, {
+          itemId: id,
+          fromId,
+          toId,
+          amount: change,
+          requestId: submission,
+        });
         if (prior) {
           return prior;
         }
@@ -105,6 +112,37 @@ export async function transferStock(
   return { error: "Stock changed on another device. Reload and try again." };
 }
 
+async function replayTransfer(
+  db: Pick<typeof prisma, "history" | "item" | "location">,
+  input: { itemId: string; fromId: string; toId: string; amount: number; requestId: string }
+): Promise<StockResult | null> {
+  const prior = await db.history.findUnique({ where: { requestId: input.requestId } });
+  if (!prior) {
+    return null;
+  }
+  const places = await db.location.findMany({
+    where: { id: { in: [input.fromId, input.toId] } },
+  });
+  const from = places.find((place) => place.id === input.fromId);
+  const to = places.find((place) => place.id === input.toId);
+  const sameOperation =
+    prior.action === "TRANSFER" &&
+    prior.itemId === input.itemId &&
+    prior.amount === input.amount &&
+    from !== undefined &&
+    to !== undefined &&
+    prior.fromLocationName === from.name &&
+    prior.toLocationName === to.name;
+  if (!sameOperation) {
+    return { error: reusedRequest };
+  }
+  const item = await loadStockItem(db, prior.itemId);
+  if (!item) {
+    return { error: "That item no longer exists." };
+  }
+  return { item };
+}
+
 async function applyTransfer(
   db: typeof prisma,
   input: {
@@ -119,7 +157,7 @@ async function applyTransfer(
 ): Promise<StockResult> {
   return db.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("UPDATE Item SET sku = sku WHERE id = ?", input.itemId);
-    const prior = await replayStockItem(input.requestId, tx as unknown as typeof prisma);
+    const prior = await replayTransfer(tx as unknown as typeof prisma, input);
     if (prior) {
       return prior;
     }

@@ -18,6 +18,7 @@ import { pinCredential } from "@/lib/pin";
 import { prisma } from "@/lib/prisma";
 import { adjustStock, findItemByQr } from "@/lib/stock";
 import { topMovers } from "@/lib/top-movers";
+import { nextTransferRequestId } from "@/lib/transfer-request";
 import { transferStock } from "@/lib/transfer";
 import { migrateLocationBalances } from "../scripts/migrate-location-balances";
 import { testDatabasePath } from "./env";
@@ -445,4 +446,120 @@ test("a location with stock cannot be deleted until the quantity is gone", async
   assert.equal("deleted" in removed && removed.deleted, true);
   assert.equal(await prisma.location.count({ where: { id: empty.id } }), 0);
   assert.equal(await prisma.stockBalance.count({ where: { locationId: empty.id } }), 0);
+});
+
+test("each completed transfer from the form receives a new request id", async () => {
+  const created = ["form-req-0001", "form-req-0002", "form-req-0003", "form-req-0004"];
+  let cursor = 0;
+  const createId = () => {
+    const id = created[cursor];
+    cursor += 1;
+    if (!id) {
+      throw new Error("The form asked for another id.");
+    }
+    return id;
+  };
+  let retry: string | null = null;
+  const attempts: string[] = [];
+  function submit(uncertain: boolean) {
+    const id = nextTransferRequestId(retry, createId);
+    attempts.push(id);
+    retry = uncertain ? id : null;
+    return id;
+  }
+
+  submit(false);
+  submit(false);
+  submit(false);
+  const uncertain = submit(true);
+  const retried = submit(false);
+  assert.deepEqual(attempts.slice(0, 3), created.slice(0, 3));
+  assert.equal(retried, uncertain);
+  assert.equal(new Set(attempts).size, 4);
+
+  const form = fs.readFileSync(path.join(repoRoot, "app/items/transfer-form.tsx"), "utf8");
+  assert.equal(form.includes("useEffect"), false);
+  assert.equal(form.includes("crypto.randomUUID"), false);
+  assert.equal(form.includes("useState(() =>"), false);
+  assert.match(form, /nextTransferRequestId\(retryId\.current\)/);
+  assert.match(form, /formData\.set\("requestId", requestId\)/);
+  assert.equal(form.includes('name="requestId"'), false);
+});
+
+test("consecutive transfers move stock and a reused id cannot describe a different move", async () => {
+  const category = await prisma.category.findFirstOrThrow();
+  const floor = await prisma.location.create({ data: { name: "Floor" } });
+  const item = await prisma.item.create({
+    data: {
+      name: "Sequence balls",
+      sku: "SEQ-1",
+      threshold: 1,
+      qrCodeData: "ZAP-ITEM-seq",
+      categoryId: category.id,
+      balances: { create: { locationId: stockroomId, quantity: 10 } },
+    },
+  });
+  const other = await prisma.item.create({
+    data: {
+      name: "Other balls",
+      sku: "SEQ-2",
+      threshold: 1,
+      qrCodeData: "ZAP-ITEM-seq-2",
+      categoryId: category.id,
+      balances: { create: { locationId: stockroomId, quantity: 10 } },
+    },
+  });
+
+  const ids = ["seq-req-00001", "seq-req-00002", "seq-req-00003"];
+  for (const requestId of ids) {
+    const moved = await transferStock(item.id, stockroomId, counterId, 1, staff, requestId);
+    assert.equal("error" in moved, false);
+  }
+  let stock = await balances("SEQ-1");
+  assert.equal(stock.byName.get("Stockroom"), 7);
+  assert.equal(stock.byName.get("Redemption Counter"), 3);
+  assert.equal(stock.total, 10);
+
+  const duplicate = await transferStock(item.id, stockroomId, counterId, 1, staff, "seq-req-00003", "same move");
+  assert.equal("item" in duplicate && duplicate.item.quantity, 10);
+  stock = await balances("SEQ-1");
+  assert.equal(stock.byName.get("Stockroom"), 7);
+  assert.equal(stock.byName.get("Redemption Counter"), 3);
+  assert.equal(await prisma.history.count({ where: { requestId: "seq-req-00003" } }), 1);
+
+  const differentAmount = await transferStock(item.id, stockroomId, counterId, 2, staff, "seq-req-00003");
+  assert.equal("error" in differentAmount && differentAmount.error, "That request was already used for a different transfer.");
+  const differentDestination = await transferStock(item.id, stockroomId, floor.id, 1, staff, "seq-req-00003");
+  assert.equal(
+    "error" in differentDestination && differentDestination.error,
+    "That request was already used for a different transfer."
+  );
+  const differentSource = await transferStock(item.id, counterId, stockroomId, 1, staff, "seq-req-00003");
+  assert.equal(
+    "error" in differentSource && differentSource.error,
+    "That request was already used for a different transfer."
+  );
+  const differentItem = await transferStock(other.id, stockroomId, counterId, 1, staff, "seq-req-00003");
+  assert.equal("error" in differentItem && differentItem.error, "That request was already used for a different transfer.");
+
+  await prisma.history.create({
+    data: {
+      itemId: item.id,
+      action: "ADD",
+      amount: 1,
+      requestId: "seq-req-add001",
+    },
+  });
+  const reusedAdd = await transferStock(item.id, stockroomId, counterId, 1, staff, "seq-req-add001");
+  assert.equal("error" in reusedAdd && reusedAdd.error, "That request was already used for a different transfer.");
+
+  stock = await balances("SEQ-1");
+  const otherStock = await balances("SEQ-2");
+  assert.equal(stock.byName.get("Stockroom"), 7);
+  assert.equal(stock.byName.get("Redemption Counter"), 3);
+  assert.equal(stock.total, 10);
+  assert.equal(otherStock.byName.get("Stockroom"), 10);
+  assert.equal(otherStock.byName.has("Redemption Counter"), false);
+  assert.equal(await prisma.stockBalance.count({ where: { itemId: item.id, locationId: floor.id } }), 0);
+  assert.equal(await prisma.history.count({ where: { itemId: item.id, action: "TRANSFER" } }), 3);
 });
