@@ -22,7 +22,7 @@ import { itemTotalsCsv, reportAccessError, toteContentsCsv, transferHistoryCsv }
 import { findItemByQr } from "@/lib/stock";
 import { createTote, createToteToken, deleteTote, loadPublicTote, rotateToteToken, setTotePublicEnabled } from "@/lib/tote";
 import { transferStock } from "@/lib/transfer";
-import { labelPageCss, toteQrOptions } from "@/lib/label-print";
+import { labelFitsPage, labelPageCss, toteQrOptions } from "@/lib/label-print";
 import { publicClientKey, stampPeer } from "@/lib/public-client";
 import { migrateLocationBalances } from "../scripts/migrate-location-balances";
 import { migrateTotes } from "../scripts/migrate-totes";
@@ -90,8 +90,14 @@ test("public tote paths and label addresses stay narrow", () => {
   assert.equal("url" in base && base.url, "https://inventory.example.com");
   const label = totePublicUrl("a".repeat(43), { PUBLIC_BASE_URL: "https://inventory.example.com" });
   assert.equal("url" in label && label.url, `https://inventory.example.com/t/${"a".repeat(43)}`);
-  assert.match(labelPageCss("label"), /size:\s*2in 2in/);
-  assert.match(labelPageCss("sheet"), /size:\s*letter/);
+  assert.match(labelPageCss("label"), /@page \{ size: 2in 2in; margin: 0in; \}/);
+  assert.match(labelPageCss("label"), /width: 2in;/);
+  assert.match(labelPageCss("label"), /height: 2in;/);
+  assert.equal(labelFitsPage("label"), true);
+  assert.match(labelPageCss("sheet"), /@page \{ size: letter; margin: 0.5in; \}/);
+  assert.match(labelPageCss("sheet"), /width: 2in;/);
+  assert.match(labelPageCss("sheet"), /height: 2in;/);
+  assert.equal(labelFitsPage("sheet"), true);
   assert.equal(toteQrOptions.margin, 4);
 
   const secret = "test-auth-secret-0123456789";

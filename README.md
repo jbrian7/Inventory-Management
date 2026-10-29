@@ -151,7 +151,7 @@ The printed label is 2 inches by 2 inches, with the tote number in large type an
 
 Only `/t/<token>` is public. Login is required for items, totes, scan, history, settings, reports, and every other page. The public response is read-only, sends `noindex`, and does not set a session cookie.
 
-Run the app with `npm start`. That command uses `server.js`, which records the TCP peer and signs it with `AUTH_SECRET`. Public rate limits use that peer, so two phones are counted separately. A browser-supplied `X-Forwarded-For`, `X-Real-IP`, or `x-inventory-peer` is ignored unless `TRUST_PROXY=1`.
+Public rate limits require `npm start`, which runs `server.js`, or `TRUST_PROXY=1` with a proxy you control. `server.js` records the TCP peer and signs it with `AUTH_SECRET`. A browser-supplied `X-Forwarded-For`, `X-Real-IP`, or `x-inventory-peer` is ignored unless `TRUST_PROXY=1`. `next start` does not do this, so it is not the production command for public tote pages.
 
 Put TLS on a reverse proxy you control. The proxy must replace the forwarding header with the visitor it actually accepted:
 
@@ -161,7 +161,7 @@ proxy_set_header X-Real-IP $remote_addr;
 proxy_set_header Host $host;
 ```
 
-Then set `TRUST_PROXY=1` and `PUBLIC_BASE_URL` to that https origin. Do not append a client-supplied `X-Forwarded-For`. Without `TRUST_PROXY`, every connection is limited by its TCP peer. Behind a proxy that is the proxy address, so visitors would share one counter. `TRUST_PROXY=1` is what separates them.
+Then set `TRUST_PROXY=1` and `PUBLIC_BASE_URL` to that https origin. Do not append a client-supplied `X-Forwarded-For`. People who share one public IP, including phones on the same network, share the same 30-request bucket. That is the address the server or the trusted proxy can see.
 
 SQLite and `.env` stay on the server. They are not served as web files. Google Sheets is an export only.
 
