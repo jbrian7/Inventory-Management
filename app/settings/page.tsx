@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { PrinterForm } from "@/app/settings/printer-form";
@@ -11,11 +12,12 @@ import {
   updateLocation,
 } from "@/app/settings/actions";
 import { UserManager } from "@/app/settings/user-manager";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/current-user";
 import { probePrinter } from "@/lib/print-client";
 import { prisma } from "@/lib/prisma";
-import { canManageSettings, isRole } from "@/lib/roles";
+import { canExportReports, canManageSettings, isRole } from "@/lib/roles";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -57,6 +59,22 @@ export default async function SettingsPage() {
           <UserManager actorRole={user.role} users={users} />
         </CardContent>
       </Card>
+
+      {canExportReports(user.role) ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Reports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted-foreground">
+              CSV downloads for Google Sheets. A spreadsheet edit does not change this inventory.
+            </p>
+            <Button asChild className="h-12">
+              <Link href="/reports">Open reports</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader className="pb-2">

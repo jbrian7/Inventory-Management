@@ -31,6 +31,7 @@ model Location {
   id       String         @id @default(cuid())
   name     String         @unique
   balances StockBalance[]
+  tote     Tote?
 }
 
 model Category {
@@ -67,6 +68,26 @@ model StockBalance {
   location   Location @relation(fields: [locationId], references: [id])
 
   @@unique([itemId, locationId])
+}
+
+// A tote is one dedicated location. Contents are that location's stock balances.
+model Tote {
+  id            String   @id @default(cuid())
+  name          String
+  publicToken   String   @unique
+  publicEnabled Boolean  @default(true)
+  storageLabel  String?
+  locationId    String   @unique
+  location      Location @relation(fields: [locationId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Counts anonymous tote-page requests. The key is a client address, not a token.
+model PublicScanLimit {
+  key         String   @id
+  hits        Int      @default(0)
+  windowStart DateTime
 }
 
 model History {

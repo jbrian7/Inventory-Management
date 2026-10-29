@@ -88,6 +88,10 @@ async function saveNamed(
   try {
     if (kind === "location") {
       if (id) {
+        const owned = await prisma.tote.findUnique({ where: { locationId: id }, select: { id: true } });
+        if (owned) {
+          return { error: "Rename this tote from the Totes page." };
+        }
         await prisma.location.update({ where: { id }, data: { name } });
       } else {
         await prisma.location.create({ data: { name } });
