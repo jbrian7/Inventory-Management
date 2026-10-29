@@ -145,9 +145,27 @@ Each tote has an unguessable public token. The phone URL is `PUBLIC_BASE_URL` pl
 
 Turning the public link off or rotating it makes the old QR return the same not-available page. Print a new label after rotating.
 
-Put the app behind https on a hostname phones can reach. Set `TRUST_PROXY=1` only for a proxy you control, so public page limits apply per visitor instead of one shared counter.
+The printed label is 2 inches by 2 inches, with the tote number in large type and a QR quiet zone. Choose a 2 inch label printer, or a letter sheet when the stickers are on ordinary paper. Opening the print dialog does not mean the label printed. The Raspberry Pi print server remains optional and reports whether it accepted the job.
 
-Browser printing opens the system print dialog for AirPrint, Wi-Fi, or a label sheet. Opening the dialog does not mean the label printed. The existing Raspberry Pi print server remains optional and reports whether it accepted the job.
+### Internet deployment
+
+Only `/t/<token>` is public. Login is required for items, totes, scan, history, settings, reports, and every other page. The public response is read-only, sends `noindex`, and does not set a session cookie.
+
+Run the app with `npm start`. That command uses `server.js`, which records the TCP peer and signs it with `AUTH_SECRET`. Public rate limits use that peer, so two phones are counted separately. A browser-supplied `X-Forwarded-For`, `X-Real-IP`, or `x-inventory-peer` is ignored unless `TRUST_PROXY=1`.
+
+Put TLS on a reverse proxy you control. The proxy must replace the forwarding header with the visitor it actually accepted:
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header Host $host;
+```
+
+Then set `TRUST_PROXY=1` and `PUBLIC_BASE_URL` to that https origin. Do not append a client-supplied `X-Forwarded-For`. Without `TRUST_PROXY`, every connection is limited by its TCP peer. Behind a proxy that is the proxy address, so visitors would share one counter. `TRUST_PROXY=1` is what separates them.
+
+SQLite and `.env` stay on the server. They are not served as web files. Google Sheets is an export only.
+
+PIN lockout on the store LAN still shares one counter when `TRUST_PROXY` is unset. That is separate from public tote limits.
 
 ## Google Sheets
 

@@ -22,6 +22,9 @@ import { itemTotalsCsv, reportAccessError, toteContentsCsv, transferHistoryCsv }
 import { findItemByQr } from "@/lib/stock";
 import { createTote, createToteToken, deleteTote, loadPublicTote, rotateToteToken, setTotePublicEnabled } from "@/lib/tote";
 import { transferStock } from "@/lib/transfer";
+import { labelPageCss, toteQrOptions } from "@/lib/label-print";
+import { publicClientKey, stampPeer } from "@/lib/public-client";
+import { migrateLocationBalances } from "../scripts/migrate-location-balances";
 import { migrateTotes } from "../scripts/migrate-totes";
 import { testDatabasePath } from "./env";
 
@@ -87,6 +90,42 @@ test("public tote paths and label addresses stay narrow", () => {
   assert.equal("url" in base && base.url, "https://inventory.example.com");
   const label = totePublicUrl("a".repeat(43), { PUBLIC_BASE_URL: "https://inventory.example.com" });
   assert.equal("url" in label && label.url, `https://inventory.example.com/t/${"a".repeat(43)}`);
+  assert.match(labelPageCss("label"), /size:\s*2in 2in/);
+  assert.match(labelPageCss("sheet"), /size:\s*letter/);
+  assert.equal(toteQrOptions.margin, 4);
+
+  const secret = "test-auth-secret-0123456789";
+  const phoneA = stampPeer("203.0.113.10", secret);
+  const phoneB = stampPeer("203.0.113.20", secret);
+  const list = (values: Record<string, string>) => ({
+    get(name: string) {
+      return values[name.toLowerCase()] ?? null;
+    },
+  });
+  assert.equal(
+    publicClientKey(list({ "x-forwarded-for": "198.51.100.9", "x-inventory-peer": phoneA ?? "" }), {
+      AUTH_SECRET: secret,
+    }),
+    "ip:203.0.113.10"
+  );
+  assert.equal(publicClientKey(list({ "x-inventory-peer": phoneB ?? "" }), { AUTH_SECRET: secret }), "ip:203.0.113.20");
+  assert.notEqual(
+    publicClientKey(list({ "x-inventory-peer": phoneA ?? "" }), { AUTH_SECRET: secret }),
+    publicClientKey(list({ "x-inventory-peer": phoneB ?? "" }), { AUTH_SECRET: secret })
+  );
+  assert.equal(
+    publicClientKey(list({ "x-forwarded-for": "198.51.100.9", "x-inventory-peer": "203.0.113.10.forged" }), {
+      AUTH_SECRET: secret,
+    }),
+    "local"
+  );
+  assert.equal(
+    publicClientKey(list({ "x-forwarded-for": "203.0.113.8, 203.0.113.9" }), {
+      TRUST_PROXY: "1",
+      AUTH_SECRET: secret,
+    }),
+    "ip:203.0.113.9"
+  );
 });
 
 test("csv cells neutralize formulas and quotes", () => {
@@ -129,6 +168,96 @@ test("the tote migration adds tables without changing inventory", () => {
   fs.rmSync(file, { force: true });
 });
 
+function totalsBySku(db: Database.Database) {
+  const columns = new Set(
+    (db.prepare("PRAGMA table_info(Item)").all() as { name: string }[]).map((column) => column.name)
+  );
+  if (columns.has("quantity")) {
+    return db.prepare("SELECT sku, quantity FROM Item ORDER BY sku").all() as { sku: string; quantity: number }[];
+  }
+  return db
+    .prepare(
+      `SELECT Item.sku AS sku, COALESCE(SUM(StockBalance.quantity), 0) AS quantity
+       FROM Item
+       LEFT JOIN StockBalance ON StockBalance.itemId = Item.id
+       GROUP BY Item.id, Item.sku
+       ORDER BY Item.sku`
+    )
+    .all() as { sku: string; quantity: number }[];
+}
+
+function legacyInventory(file: string) {
+  fs.rmSync(file, { force: true });
+  const db = new Database(file);
+  db.exec(`
+    CREATE TABLE Location (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE Category (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE Item (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sku TEXT NOT NULL,
+      description TEXT,
+      quantity INTEGER NOT NULL,
+      threshold INTEGER NOT NULL DEFAULT 5,
+      locationId TEXT NOT NULL,
+      categoryId TEXT NOT NULL,
+      qrCodeData TEXT NOT NULL,
+      receivedAt DATETIME,
+      outOfStockAt DATETIME,
+      isManualOos BOOLEAN NOT NULL DEFAULT 0,
+      createdAt DATETIME NOT NULL,
+      updatedAt DATETIME NOT NULL
+    );
+    CREATE TABLE History (
+      id TEXT PRIMARY KEY,
+      itemId TEXT NOT NULL,
+      userId TEXT,
+      action TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      timestamp DATETIME NOT NULL
+    );
+    INSERT INTO Location (id, name) VALUES ('loc-stock', 'Stockroom');
+    INSERT INTO Category (id, name) VALUES ('cat-1', 'Prizes');
+    INSERT INTO Item (
+      id, name, sku, description, quantity, threshold, locationId, categoryId, qrCodeData,
+      receivedAt, outOfStockAt, isManualOos, createdAt, updatedAt
+    ) VALUES (
+      'item-1', 'Bouncy balls', 'BB-001', NULL, 4, 5, 'loc-stock', 'cat-1', 'ZAP-ITEM-item-1',
+      '2026-10-19 12:00:00', NULL, 0, '2026-10-19 12:00:00', '2026-10-19 12:00:00'
+    );
+    INSERT INTO History (id, itemId, action, amount, timestamp)
+      VALUES ('hist-1', 'item-1', 'ADD', 4, '2026-10-19 12:00:00');
+  `);
+  db.close();
+}
+
+test("legacy inventory migrates to balances and an already migrated database stays unchanged", () => {
+  const legacy = path.join(os.tmpdir(), `zap-legacy-${process.pid}.db`);
+  legacyInventory(legacy);
+  const moved = migrateLocationBalances(legacy, () => undefined);
+  assert.equal(moved.alreadyMigrated, false);
+  migrateTotes(legacy, () => undefined);
+  const migrated = new Database(legacy);
+  const columns = new Set(
+    (migrated.prepare("PRAGMA table_info(Item)").all() as { name: string }[]).map((column) => column.name)
+  );
+  assert.equal(columns.has("quantity"), false);
+  assert.deepEqual(totalsBySku(migrated), [{ sku: "BB-001", quantity: 4 }]);
+  const qr = migrated.prepare("SELECT qrCodeData FROM Item WHERE sku = 'BB-001'").get() as { qrCodeData: string };
+  assert.equal(qr.qrCodeData, "ZAP-ITEM-item-1");
+  migrated.close();
+
+  const again = migrateLocationBalances(legacy, () => undefined);
+  assert.equal(again.alreadyMigrated, true);
+  const totesAgain = migrateTotes(legacy, () => undefined);
+  assert.equal(totesAgain.alreadyPresent, true);
+  const after = new Database(legacy);
+  assert.deepEqual(totalsBySku(after), [{ sku: "BB-001", quantity: 4 }]);
+  assert.equal((after.prepare("SELECT COUNT(*) AS n FROM Tote").get() as { n: number }).n, 0);
+  after.close();
+  fs.rmSync(legacy, { force: true });
+});
+
 test("a disposable copy of the populated database keeps its quantities", () => {
   const live = path.join(repoRoot, "dev.db");
   if (!fs.existsSync(live)) {
@@ -139,7 +268,7 @@ test("a disposable copy of the populated database keeps its quantities", () => {
   fs.copyFileSync(live, copy);
   migrateTotes(copy, () => undefined);
   const db = new Database(copy);
-  const rows = db.prepare("SELECT sku, quantity FROM Item ORDER BY sku").all() as { sku: string; quantity: number }[];
+  const rows = totalsBySku(db);
   assert.equal(rows.find((row) => row.sku === "BB-001")?.quantity, 4);
   assert.equal(rows.find((row) => row.sku === "AT-010")?.quantity, 30);
   assert.equal(rows.find((row) => row.sku === "SQ-001")?.quantity, 2);

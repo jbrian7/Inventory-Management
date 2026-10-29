@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
     "lint": "next lint",
-    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/print.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/layout.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/hardening.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/brand.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/transfer.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/tote.test.ts",
+    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/print.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/layout.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/hardening.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/brand.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/transfer.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/tote.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/tote-routes.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { businessName } from "@/lib/brand";
-import { clientAddress } from "@/lib/client-address";
+import { publicClientKey } from "@/lib/public-client";
 import {
   publicToteHeaders,
   renderPublicLimited,
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request, { params }: { params: { token: string } }) {
-  const limited = await consumePublicScan(clientAddress(request.headers));
+  const limited = await consumePublicScan(publicClientKey(request.headers));
   if (limited) {
     return new NextResponse(renderPublicLimited(), { status: 429, headers: publicToteHeaders });
   }
