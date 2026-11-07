@@ -80,6 +80,7 @@ npx tsx scripts/migrate-stock-history.ts
 npx tsx scripts/migrate-actor-name.ts
 npx tsx scripts/migrate-location-balances.ts
 npx tsx scripts/migrate-totes.ts
+npx tsx scripts/migrate-intake.ts
 npx prisma db push
 ```
 
@@ -88,7 +89,8 @@ npx prisma db push
 3. `migrate-actor-name.ts` stores the staff name on movements that still point at a user. Rows with no user stay blank and show as Unknown.
 4. `migrate-location-balances.ts` copies each item's quantity onto one balance at its current location, then removes `Item.quantity` and `Item.locationId`. It does not add stock at any other location. Item ids, SKUs, QR values, and history rows stay the same.
 5. `migrate-totes.ts` adds empty tote tables. It does not create totes or change quantities, history, or item QR values.
-6. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
+6. `migrate-intake.ts` adds optional barcode and archive columns, plus an empty receipt table. It does not archive products or change quantities.
+7. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
 
 Back up `dev.db` and `.env` together. The pepper is required to check PINs. A safe copy is a file copy while the app is stopped, or SQLite's online backup:
 

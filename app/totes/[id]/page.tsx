@@ -25,6 +25,7 @@ export default async function TotePage({ params }: { params: { id: string } }) {
     }),
     prisma.location.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.item.findMany({
+      where: { archivedAt: null },
       orderBy: { name: "asc" },
       include: { balances: { include: { location: true } } },
     }),
@@ -79,9 +80,20 @@ export default async function TotePage({ params }: { params: { id: string } }) {
             </ul>
           )}
         </section>
-        <Button asChild className="h-12">
-          <Link href={`/totes/${tote.id}/label`}>Tote label</Link>
-        </Button>
+        <div className="grid gap-3">
+          <Button asChild className="h-12">
+            <Link href={`/intake?location=${tote.locationId}&mode=add`}>Add contents</Link>
+          </Button>
+          <Button asChild variant="secondary" className="h-12">
+            <Link href={`/intake?location=${tote.locationId}&mode=remove`}>Remove contents</Link>
+          </Button>
+          <Button asChild variant="secondary" className="h-12">
+            <Link href={`/intake?location=${tote.locationId}&mode=move`}>Move contents</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-12">
+            <Link href={`/totes/${tote.id}/label`}>Tote label</Link>
+          </Button>
+        </div>
         <Button asChild variant="secondary" className="h-12">
           <Link href="/totes">Back to totes</Link>
         </Button>

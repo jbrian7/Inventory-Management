@@ -1,6 +1,8 @@
 import { ItemCatalog } from "@/app/items/item-catalog";
 import { TopMovers } from "@/app/items/top-movers";
+import { archiveDepletedAction } from "@/app/items/lifecycle-actions";
 import { balancesFromRows, locationSummary, totalQuantity } from "@/lib/balances";
+import { lifecycleOf } from "@/lib/lifecycle";
 import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { canEditInventory } from "@/lib/roles";
@@ -31,6 +33,13 @@ export default async function ItemsPage({
       </header>
 
       <TopMovers />
+      {canEdit ? (
+        <form action={archiveDepletedAction}>
+          <button type="submit" className="h-12 rounded-md border px-4 text-sm font-medium">
+            Archive all depleted
+          </button>
+        </form>
+      ) : null}
 
       <ItemCatalog
         initialQuery={searchParams.q?.trim() ?? ""}
@@ -49,6 +58,7 @@ export default async function ItemsPage({
           categoryName: item.category.name,
           qrCodeData: item.qrCodeData,
           isManualOos: item.isManualOos,
+          lifecycle: lifecycleOf({ archivedAt: item.archivedAt, quantity: totalQuantity(balances) }),
           };
         })}
         canEdit={canEdit}

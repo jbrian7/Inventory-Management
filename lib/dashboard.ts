@@ -67,8 +67,14 @@ export function onHandUnits(items: { quantity: number }[]) {
   }, 0);
 }
 
-export function isLowStock(item: { quantity: number; threshold: number; isManualOos: boolean }) {
-  return !item.isManualOos && item.quantity <= item.threshold;
+export function isLowStock(item: { quantity: number; threshold: number; isManualOos: boolean; archivedAt?: Date | null }) {
+  if (item.isManualOos || item.archivedAt) {
+    return false;
+  }
+  if (!Number.isInteger(item.threshold) || item.threshold <= 0) {
+    return false;
+  }
+  return item.quantity <= item.threshold;
 }
 
 export function prioritizeLowStock<T extends StockSnapshot>(items: T[]) {
@@ -148,6 +154,7 @@ type DashboardDb = {
         name: string;
         threshold: number;
         isManualOos: boolean;
+        archivedAt?: Date | null;
         balances: { quantity: number; location: { name: string } }[];
       }[]
     >;
@@ -167,6 +174,7 @@ export async function loadDashboard(now = new Date(), db: DashboardDb = prisma a
         name: true,
         threshold: true,
         isManualOos: true,
+        archivedAt: true,
         balances: { select: { quantity: true, location: { select: { name: true } } } },
       },
     }),
@@ -183,7 +191,7 @@ export async function loadDashboard(now = new Date(), db: DashboardDb = prisma a
     }),
   ]);
   return buildDashboard(
-    items.map((item) => ({
+    items.filter((item) => !item.archivedAt).map((item) => ({
       id: item.id,
       name: item.name,
       quantity: totalQuantity(item.balances),

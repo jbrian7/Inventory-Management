@@ -20,6 +20,7 @@ import { adjustStock, findItemByQr } from "@/lib/stock";
 import { topMovers } from "@/lib/top-movers";
 import { nextTransferRequestId } from "@/lib/transfer-request";
 import { transferStock } from "@/lib/transfer";
+import { migrateIntake } from "../scripts/migrate-intake";
 import { migrateLocationBalances } from "../scripts/migrate-location-balances";
 import { testDatabasePath } from "./env";
 
@@ -228,6 +229,7 @@ test("a disposable copy of the populated database keeps item totals and QR codes
   const migrated = migrateLocationBalances(copy, () => undefined);
   assert.equal(migrated.items > 0, true);
   migrateLocationBalances(copy, () => undefined);
+  migrateIntake(copy, () => undefined);
   execFileSync("npx", ["prisma", "db", "push"], {
     cwd: repoRoot,
     env: { ...process.env, DATABASE_URL: `file:${copy}` },

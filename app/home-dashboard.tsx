@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
+import { FastInventory } from "@/app/fast-inventory";
 import { RetryLoad } from "@/components/retry-load";
 import {
   Card,
@@ -124,6 +125,7 @@ export async function HomeDashboard() {
         )}
       </section>
       </div>
+      <FastInventory />
     </div>
   );
 }

@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/current-user";
-import { itemTotalsCsv, locationBalancesCsv, reportAccessError, toteContentsCsv, transferHistoryCsv } from "@/lib/reports";
+import {
+  itemTotalsCsv,
+  lifecycleCsv,
+  locationBalancesCsv,
+  receivedProductsCsv,
+  recentMovementsCsv,
+  reportAccessError,
+  staleItemsCsv,
+  toteContentsCsv,
+  transferHistoryCsv,
+} from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +21,10 @@ const reports = {
   balances: { filename: "location-balances.csv", load: locationBalancesCsv },
   totes: { filename: "tote-contents.csv", load: toteContentsCsv },
   transfers: { filename: "transfer-history.csv", load: transferHistoryCsv },
+  received: { filename: "received-products.csv", load: receivedProductsCsv },
+  lifecycle: { filename: "lifecycle.csv", load: lifecycleCsv },
+  movements: { filename: "recent-movements.csv", load: recentMovementsCsv },
+  stale: { filename: "no-recent-movement.csv", load: staleItemsCsv },
 } as const;
 
 export async function GET(_request: Request, { params }: { params: { report: string } }) {

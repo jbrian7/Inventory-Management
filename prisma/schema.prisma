@@ -49,9 +49,11 @@ model Item {
   categoryId   String
   category     Category  @relation(fields: [categoryId], references: [id])
   qrCodeData   String    @unique // The string encoded in the QR
+  barcode      String?   @unique
   receivedAt   DateTime? @default(now())
   outOfStockAt DateTime?
   isManualOos  Boolean   @default(false)
+  archivedAt   DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   balances     StockBalance[]
@@ -88,6 +90,16 @@ model PublicScanLimit {
   key         String   @id
   hits        Int      @default(0)
   windowStart DateTime
+}
+
+// One idempotency key for a quick or batch receipt. History rows record each line.
+model StockReceipt {
+  id          String   @id @default(cuid())
+  requestId   String   @unique
+  fingerprint String
+  userId      String?
+  actorName   String?
+  createdAt   DateTime @default(now())
 }
 
 model History {

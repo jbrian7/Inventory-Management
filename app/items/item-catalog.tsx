@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AddItemButton } from "@/app/items/add-item-form";
+import { archiveItemAction, restoreItemAction } from "@/app/items/lifecycle-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export type CatalogItem = {
   categoryName: string;
   qrCodeData: string;
   isManualOos: boolean;
+  lifecycle: "ACTIVE" | "DEPLETED" | "ARCHIVED";
 };
 
 const fieldClass = "h-12 rounded-md border border-input bg-transparent px-3 text-base";
@@ -57,6 +59,7 @@ export function ItemCatalog({
   const [query, setQuery] = useState(initialQuery);
   const [categoryId, setCategoryId] = useState("all");
   const [locationName, setLocationName] = useState("all");
+  const [lifecycle, setLifecycle] = useState<"current" | "ACTIVE" | "DEPLETED" | "ARCHIVED" | "all">("current");
   const [sort, setSort] = useState<SortKey>("name");
   const [direction, setDirection] = useState<"asc" | "desc">("asc");
 
@@ -69,6 +72,10 @@ export function ItemCatalog({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const filtered = items.filter((item) => {
+      const matchesLifecycle =
+        lifecycle === "all" ||
+        (lifecycle === "current" && item.lifecycle !== "ARCHIVED") ||
+        item.lifecycle === lifecycle;
       const matchesCategory = categoryId === "all" || item.categoryId === categoryId;
       const matchesLocation =
         locationName === "all" || item.locationNames.includes(locationName) || item.locationName === locationName;
@@ -79,7 +86,7 @@ export function ItemCatalog({
         item.locationName.toLowerCase().includes(needle) ||
         item.locationNames.some((name) => name.toLowerCase().includes(needle)) ||
         item.categoryName.toLowerCase().includes(needle);
-      return matchesCategory && matchesLocation && matchesText;
+      return matchesLifecycle && matchesCategory && matchesLocation && matchesText;
     });
     const factor = direction === "asc" ? 1 : -1;
     return filtered.sort((left, right) => {
@@ -92,9 +99,9 @@ export function ItemCatalog({
         sort === "sku" ? right.sku : sort === "location" ? right.locationName : right.name;
       return leftValue.localeCompare(rightValue) * factor;
     });
-  }, [categoryId, direction, items, locationName, query, sort]);
+  }, [categoryId, direction, items, lifecycle, locationName, query, sort]);
 
-  const filtering = query.trim().length > 0 || categoryId !== "all" || locationName !== "all";
+  const filtering = query.trim().length > 0 || categoryId !== "all" || locationName !== "all" || lifecycle !== "current";
 
   return (
     <div className="flex flex-col gap-4">
@@ -112,6 +119,21 @@ export function ItemCatalog({
               enterKeyHint="search"
               className="h-12"
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="item-lifecycle">Show</Label>
+            <select
+              id="item-lifecycle"
+              value={lifecycle}
+              onChange={(event) => setLifecycle(event.target.value as typeof lifecycle)}
+              className={fieldClass}
+            >
+              <option value="current">Active and depleted</option>
+              <option value="ACTIVE">Active</option>
+              <option value="DEPLETED">Depleted</option>
+              <option value="ARCHIVED">Archived</option>
+              <option value="all">All</option>
+            </select>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="item-category">Category</Label>
@@ -210,6 +232,12 @@ function stockTone(item: CatalogItem) {
 }
 
 function StatusText({ item }: { item: CatalogItem }) {
+  if (item.lifecycle === "ARCHIVED") {
+    return <span className="font-medium">Archived</span>;
+  }
+  if (item.lifecycle === "DEPLETED") {
+    return <span className="font-medium text-red-700">Depleted</span>;
+  }
   const tone = stockTone(item);
   if (tone === "out") {
     return (
@@ -243,6 +271,16 @@ function ItemActions({
       <Button asChild variant="secondary" className="h-11 px-3">
         <Link href={`/items/${item.id}`}>Details</Link>
       </Button>
+      {canEdit && item.lifecycle === "DEPLETED" ? (
+        <Button type="button" variant="outline" className="h-11 px-3" onClick={() => archiveItemAction(item.id)}>
+          Archive
+        </Button>
+      ) : null}
+      {canEdit && item.lifecycle === "ARCHIVED" ? (
+        <Button type="button" variant="outline" className="h-11 px-3" onClick={() => restoreItemAction(item.id)}>
+          Restore
+        </Button>
+      ) : null}
     </div>
   );
 }
