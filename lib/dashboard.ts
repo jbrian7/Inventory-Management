@@ -1,3 +1,4 @@
+import { locationSummary, totalQuantity } from "@/lib/balances";
 import { businessTodayRange } from "@/lib/business-time";
 import {
   formatMovementTime,
@@ -29,6 +30,13 @@ export type MovementSnapshot = {
   amount: number;
   quantityBefore: number | null;
   quantityAfter: number | null;
+  locationName?: string | null;
+  fromLocationName?: string | null;
+  toLocationName?: string | null;
+  sourceQuantityBefore?: number | null;
+  sourceQuantityAfter?: number | null;
+  destinationQuantityBefore?: number | null;
+  destinationQuantityAfter?: number | null;
   reason: string | null;
   timestamp: Date;
   actorName?: string | null;
@@ -40,8 +48,11 @@ export type PresentedMovement = {
   id: string;
   itemId: string;
   itemName: string;
+  action: string;
+  amount: number;
   title: string;
   actor: string;
+  sentence: string | null;
   quantityLine: string;
   reason: string | null;
   time: string;
@@ -92,12 +103,17 @@ export function homeActions(role: string | null | undefined) {
 }
 
 export function presentMovement(entry: MovementSnapshot): PresentedMovement {
+  const itemName = entry.item?.name.trim() || "Unknown item";
+  const actor = movementActorLabel(entry);
   return {
     id: entry.id,
     itemId: entry.item?.id ?? "",
-    itemName: entry.item?.name.trim() || "Unknown item",
+    itemName,
+    action: entry.action,
+    amount: entry.amount,
     title: movementTitle(entry),
-    actor: movementActorLabel(entry),
+    actor,
+    sentence: entry.action === "TRANSFER" ? `${actor} transferred ${entry.amount} ${itemName}` : null,
     quantityLine: movementQuantityLine(entry),
     reason: entry.reason?.trim() || null,
     time: formatMovementTime(entry.timestamp),
@@ -130,10 +146,9 @@ type DashboardDb = {
       {
         id: string;
         name: string;
-        quantity: number;
         threshold: number;
         isManualOos: boolean;
-        location: { name: string };
+        balances: { quantity: number; location: { name: string } }[];
       }[]
     >;
   };
@@ -150,10 +165,9 @@ export async function loadDashboard(now = new Date(), db: DashboardDb = prisma a
       select: {
         id: true,
         name: true,
-        quantity: true,
         threshold: true,
         isManualOos: true,
-        location: { select: { name: true } },
+        balances: { select: { quantity: true, location: { select: { name: true } } } },
       },
     }),
     db.history.findMany({
@@ -172,10 +186,10 @@ export async function loadDashboard(now = new Date(), db: DashboardDb = prisma a
     items.map((item) => ({
       id: item.id,
       name: item.name,
-      quantity: item.quantity,
+      quantity: totalQuantity(item.balances),
       threshold: item.threshold,
       isManualOos: item.isManualOos,
-      location: item.location.name,
+      location: locationSummary(item.balances.map((balance) => ({ name: balance.location.name }))),
     })),
     recent.map(presentMovement),
     todayCount

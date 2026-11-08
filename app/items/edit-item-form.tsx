@@ -16,11 +16,9 @@ const initialState: ItemFormState = {};
 
 export function EditItemForm({
   defaults,
-  locations,
   categories,
 }: {
   defaults: ItemFormDefaults;
-  locations: { id: string; name: string }[];
   categories: { id: string; name: string }[];
 }) {
   const [state, formAction] = useFormState(updateItem, initialState);
@@ -29,7 +27,7 @@ export function EditItemForm({
     <Card id="edit">
       <CardHeader>
         <CardTitle className="text-base">Edit item</CardTitle>
-        <CardDescription>Name, location, category, and dates.</CardDescription>
+        <CardDescription>Name, category, threshold, and dates.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {state.saved ? (
@@ -41,13 +39,14 @@ export function EditItemForm({
           action={formAction}
           state={state}
           defaults={defaults}
-          locations={locations}
+          locations={[]}
           categories={categories}
           submitLabel="Save changes"
           lockQuantity
+          includeLocation={false}
         />
         <p className="text-sm text-muted-foreground">
-          Saving does not change on-hand quantity. Correct stock from the item details page.
+          Saving does not change on-hand quantity. Move stock with Transfer stock, or correct one location from the item details page.
         </p>
       </CardContent>
     </Card>

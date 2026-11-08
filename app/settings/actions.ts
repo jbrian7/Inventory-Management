@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { clearSession, getCurrentUser } from "@/lib/current-user";
 import { Prisma } from "@/lib/generated/prisma/client";
+import { deleteLocationIfEmpty } from "@/lib/locations";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
 import { createStaffMember, removeStaffMember, updateStaffMember } from "@/lib/staff-admin";
@@ -136,21 +137,16 @@ async function deleteNamed(kind: "location" | "category", id: string): Promise<A
   if (!id) {
     return { error: "That record is missing." };
   }
-  const inUse =
-    kind === "location"
-      ? await prisma.item.count({ where: { locationId: id } })
-      : await prisma.item.count({ where: { categoryId: id } });
-  if (inUse > 0) {
-    return {
-      error:
-        kind === "location"
-          ? "Move the items in this location before deleting it."
-          : "Move the items in this category before deleting it.",
-    };
-  }
   if (kind === "location") {
-    await prisma.location.delete({ where: { id } });
+    const removed = await deleteLocationIfEmpty(id);
+    if ("error" in removed) {
+      return removed;
+    }
   } else {
+    const inUse = await prisma.item.count({ where: { categoryId: id } });
+    if (inUse > 0) {
+      return { error: "Move the items in this category before deleting it." };
+    }
     await prisma.category.delete({ where: { id } });
   }
   revalidatePath("/settings");

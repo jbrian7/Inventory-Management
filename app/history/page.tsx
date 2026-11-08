@@ -201,7 +201,7 @@ export default async function HistoryPage({
                   )}
                   <p className="text-muted-foreground">{entry.actor}</p>
                 </div>
-                <p>{entry.title}</p>
+                <p>{entry.sentence ?? entry.title}</p>
                 <p className="text-muted-foreground">{entry.quantityLine}</p>
                 {entry.reason ? <p>{entry.reason}</p> : null}
                 <p className="text-xs text-muted-foreground">{entry.time}</p>

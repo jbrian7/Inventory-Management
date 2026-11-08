@@ -3,6 +3,8 @@
 import { Html5Qrcode } from "html5-qrcode";
 import { useEffect, useRef, useState } from "react";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +60,7 @@ export function QrScanner() {
   const [notice, setNotice] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [amount, setAmount] = useState("1");
+  const [locationId, setLocationId] = useState("");
   const [pending, setPending] = useState(false);
   const requestRef = useRef<string | null>(null);
 
@@ -120,6 +123,7 @@ export function QrScanner() {
         setNotice(result.error);
       } else {
         setItem(result.item);
+        setLocationId(defaultLocation(result.item));
         setNotice(null);
         setAmount("1");
       }
@@ -182,6 +186,10 @@ export function QrScanner() {
     if (!item || pending || submitLock.current) {
       return;
     }
+    if (item.directory.length > 1 && !locationId) {
+      setNotice("Choose a location.");
+      return;
+    }
     submitLock.current = true;
     const requestId = requestRef.current ?? crypto.randomUUID();
     requestRef.current = requestId;
@@ -189,16 +197,26 @@ export function QrScanner() {
     setPending(true);
     setFeedback(null);
     try {
-      const result = await updateStock(item.qrCodeData, direction, parsed, requestId);
+      const result = await updateStock(item.qrCodeData, direction, parsed, requestId, undefined, locationId);
       if ("error" in result) {
         requestRef.current = null;
         setNotice(result.error);
         return;
       }
       requestRef.current = null;
+      const selected = result.item.locations.find((place) => place.locationId === locationId);
       setItem(result.item);
+      setLocationId(selected ? locationId : defaultLocation(result.item));
       setNotice(null);
-      setFeedback(adjustmentMessage(direction, parsed, result.item.quantity));
+      setFeedback(
+        adjustmentMessage(
+          direction,
+          parsed,
+          selected?.quantity ?? result.item.quantity,
+          selected?.name,
+          result.item.quantity
+        )
+      );
     } catch {
       setNotice("The change did not finish. Submit it again.");
     } finally {
@@ -213,8 +231,10 @@ export function QrScanner() {
       notice={notice}
       feedback={feedback}
       amount={amount}
+      locationId={locationId}
       pending={pending}
       onAmount={setAmount}
+      onLocation={setLocationId}
       onAdjust={onAdjust}
       onScanAnother={() => onOpenChange(false)}
     />
@@ -291,13 +311,29 @@ export function QrScanner() {
   );
 }
 
+function defaultLocation(item: StockItem) {
+  if (item.locations.length === 1) {
+    return item.locations[0]?.locationId ?? "";
+  }
+  if (item.directory.length === 1) {
+    return item.directory[0]?.id ?? "";
+  }
+  return "";
+}
+
+function placeQuantity(item: StockItem, id: string) {
+  return item.locations.find((place) => place.locationId === id)?.quantity ?? 0;
+}
+
 function AdjustPanel({
   item,
   notice,
   feedback,
   amount,
+  locationId,
   pending,
   onAmount,
+  onLocation,
   onAdjust,
   onScanAnother,
 }: {
@@ -305,12 +341,17 @@ function AdjustPanel({
   notice: string | null;
   feedback: string | null;
   amount: string;
+  locationId: string;
   pending: boolean;
   onAmount: (value: string) => void;
+  onLocation: (value: string) => void;
   onAdjust: (direction: StockDirection) => void;
   onScanAnother: () => void;
 }) {
   const lowStock = item ? item.quantity <= item.threshold : false;
+  const selectedName = item?.directory.find((place) => place.id === locationId)?.name;
+  const needsLocation = Boolean(item && item.directory.length > 1 && !locationId);
+  const here = item && locationId ? placeQuantity(item, locationId) : null;
 
   return (
     <div className="tablet:rounded-xl tablet:border tablet:bg-card tablet:p-5" aria-busy={pending}>
@@ -344,6 +385,48 @@ function AdjustPanel({
               <p className="text-sm text-muted-foreground">Threshold {item.threshold}</p>
             )}
           </div>
+
+          <ul className="rounded-lg border" aria-label="Location balances">
+            {(item.directory.length > 0 ? item.directory : item.locations.map((place) => ({ id: place.locationId, name: place.name }))).map(
+              (place) => (
+                <li key={place.id} className="flex items-baseline justify-between gap-3 border-b px-3 py-2 text-sm last:border-b-0">
+                  <span>{place.name}</span>
+                  <span className="font-semibold tabular-nums">{placeQuantity(item, place.id)}</span>
+                </li>
+              )
+            )}
+          </ul>
+
+          {item.directory.length > 1 ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="adjust-location">Location to adjust</Label>
+              <select
+                id="adjust-location"
+                className="h-12 w-full rounded-md border border-input bg-transparent px-3 text-base"
+                value={locationId}
+                onChange={(event) => onLocation(event.target.value)}
+                disabled={pending}
+              >
+                <option value="">Choose a location</option>
+                {item.directory.map((place) => (
+                  <option key={place.id} value={place.id}>
+                    {place.name} ({placeQuantity(item, place.id)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Adjusting {selectedName ?? item.location}
+              {here !== null ? ` · ${here} there` : ""}
+            </p>
+          )}
+          {needsLocation ? (
+            <p className="text-sm font-medium text-destructive">Choose which location to adjust.</p>
+          ) : null}
+          {selectedName && item.directory.length > 1 ? (
+            <p className="text-sm text-muted-foreground">{here} available at {selectedName}.</p>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="adjust-amount">Amount</Label>
@@ -383,7 +466,7 @@ function AdjustPanel({
             <Button
               type="button"
               className="h-16 text-lg"
-              disabled={pending}
+              disabled={pending || needsLocation}
               onClick={() => onAdjust("ADD")}
             >
               {pending ? "Saving…" : "Add Stock"}
@@ -392,10 +475,13 @@ function AdjustPanel({
               type="button"
               variant="destructive"
               className="h-16 text-lg"
-              disabled={pending}
+              disabled={pending || needsLocation}
               onClick={() => onAdjust("REMOVE")}
             >
               {pending ? "Saving…" : "Deduct Stock"}
+            </Button>
+            <Button asChild variant="outline" className="h-14 text-base">
+              <Link href={`/items/${item.id}#transfer`}>Transfer stock</Link>
             </Button>
             <Button type="button" variant="secondary" className="h-14 text-base" onClick={onScanAnother}>
               Scan another

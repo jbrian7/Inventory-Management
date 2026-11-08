@@ -49,6 +49,9 @@ test("the dashboard and catalog use columns only from tablet width", () => {
   assert.match(catalog, /<table/);
   assert.match(catalog, /OUT OF STOCK/);
   assert.match(catalog, /In stock/);
+  assert.match(source("app/items/[id]/page.tsx"), /Total inventory/);
+  assert.match(source("app/items/transfer-form.tsx"), /Confirm transfer/);
+  assert.match(source("app/items/transfer-form.tsx"), /tablet:grid-cols-2/);
   assert.match(catalog, /item-search/);
   assert.match(catalog, /item-location/);
 });
@@ -63,6 +66,8 @@ test("scan adjustments confirm the new count and ignore a second tap", () => {
   assert.match(scanner, /Looking up label/);
   assert.match(scanner, /Saving…/);
   assert.match(scanner, /h-16/);
+  assert.match(scanner, /adjust-location/);
+  assert.match(scanner, /submitLock/);
   assert.match(scanner, /tablet:grid-cols-\[minmax\(0,1\.15fr\)_minmax\(18rem,0\.85fr\)\]/);
   assert.match(scanner, /min-width: 700px/);
   assert.match(scanner, /min-height: 500px/);

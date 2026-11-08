@@ -48,12 +48,27 @@ function itemQuantities(db: Database.Database) {
   if (!tableExists(db, "Item")) {
     return "missing";
   }
-  const rows = db.prepare("SELECT id, sku, quantity FROM Item ORDER BY id").all() as {
-    id: string;
-    sku: string;
-    quantity: number;
-  }[];
-  return rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|");
+  const names = columnNames(db, "Item");
+  if (names.has("quantity")) {
+    const rows = db.prepare("SELECT id, sku, quantity FROM Item ORDER BY id").all() as {
+      id: string;
+      sku: string;
+      quantity: number;
+    }[];
+    return rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|");
+  }
+  if (tableExists(db, "StockBalance")) {
+    const rows = db
+      .prepare(
+        `SELECT Item.id AS id, Item.sku AS sku, COALESCE(SUM(StockBalance.quantity), 0) AS quantity
+         FROM Item LEFT JOIN StockBalance ON StockBalance.itemId = Item.id
+         GROUP BY Item.id, Item.sku ORDER BY Item.id`
+      )
+      .all() as { id: string; sku: string; quantity: number }[];
+    return rows.map((row) => `${row.id}:${row.sku}:${row.quantity}`).join("|");
+  }
+  const rows = db.prepare("SELECT id, sku FROM Item ORDER BY id").all() as { id: string; sku: string }[];
+  return rows.map((row) => `${row.id}:${row.sku}`).join("|");
 }
 
 export function migrateActorName(databasePath: string, log: Log = console.info) {

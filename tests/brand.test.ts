@@ -37,10 +37,9 @@ before(async () => {
     data: {
       name: "Bouncy balls",
       sku: "BB-1",
-      quantity: 4,
       qrCodeData: legacyQr,
-      locationId: location.id,
       categoryId: category.id,
+      balances: { create: { locationId: location.id, quantity: 4 } },
     },
   });
 });

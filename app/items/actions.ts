@@ -10,6 +10,7 @@ import { parseDateInput, todayDateInput } from "@/lib/item-dates";
 import { prisma } from "@/lib/prisma";
 import { inventoryAccessError } from "@/lib/access";
 import { correctStock, parseQuantity, parseRequestId } from "@/lib/stock";
+import { transferStock } from "@/lib/transfer";
 
 export type ItemFormState = {
   error?: string;
@@ -21,6 +22,12 @@ export type ItemFormState = {
 export type CorrectionState = {
   error?: string;
   saved?: boolean;
+};
+
+export type TransferState = {
+  error?: string;
+  saved?: boolean;
+  message?: string;
 };
 
 function wholeNumber(value: FormDataEntryValue | null, fallback: number) {
@@ -54,7 +61,7 @@ type ItemFields = {
 
 function readItemFields(
   formData: FormData,
-  options: { requireQuantity: boolean }
+  options: { requireQuantity: boolean; requireLocation: boolean }
 ): { error: string } | { fields: ItemFields } {
   const name = String(formData.get("name") ?? "").trim();
   const sku = String(formData.get("sku") ?? "").trim();
@@ -70,7 +77,7 @@ function readItemFields(
   if (!name || !sku) {
     return { error: "Name and SKU are required." };
   }
-  if (!locationId) {
+  if (options.requireLocation && !locationId) {
     return { error: "Choose a location." };
   }
   if (!categoryId) {
@@ -135,7 +142,7 @@ export async function createItem(
     return { error: "Only admins and managers can add items." };
   }
 
-  const parsed = readItemFields(formData, { requireQuantity: true });
+  const parsed = readItemFields(formData, { requireQuantity: true, requireLocation: true });
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -184,16 +191,25 @@ export async function updateItem(
     return { error: "That item no longer exists." };
   }
 
-  const parsed = readItemFields(formData, { requireQuantity: false });
+  const parsed = readItemFields(formData, { requireQuantity: false, requireLocation: false });
   if ("error" in parsed) {
     return { error: parsed.error };
   }
-  const missing = await relationsExist(parsed.fields.locationId, parsed.fields.categoryId);
-  if (missing) {
-    return { error: missing };
+  const category = await prisma.category.findUnique({ where: { id: parsed.fields.categoryId } });
+  if (!category) {
+    return { error: "Choose a category." };
   }
 
-  const saved = await saveItemDetails(user, id, parsed.fields);
+  const saved = await saveItemDetails(user, id, {
+    name: parsed.fields.name,
+    sku: parsed.fields.sku,
+    description: parsed.fields.description,
+    threshold: parsed.fields.threshold,
+    categoryId: parsed.fields.categoryId,
+    receivedAt: parsed.fields.receivedAt,
+    outOfStockAt: parsed.fields.outOfStockAt,
+    isManualOos: parsed.fields.isManualOos,
+  });
   if ("error" in saved) {
     return { error: saved.error };
   }
@@ -215,7 +231,9 @@ export async function correctItemQuantity(
     formData.get("expectedQuantity"),
     formData.get("reason"),
     formData.get("requestId"),
-    user
+    user,
+    undefined,
+    String(formData.get("locationId") ?? "")
   );
   if ("error" in result) {
     return { error: result.error };
@@ -224,4 +242,37 @@ export async function correctItemQuantity(
   revalidatePath(`/items/${result.item.id}`);
   revalidatePath(`/items/${result.item.id}/edit`);
   return { saved: true };
+}
+
+export async function transferItem(
+  _previous: TransferState,
+  formData: FormData
+): Promise<TransferState> {
+  const user = await getCurrentUser();
+  const result = await transferStock(
+    String(formData.get("itemId") ?? ""),
+    formData.get("fromLocationId"),
+    formData.get("toLocationId"),
+    formData.get("quantity"),
+    user,
+    formData.get("requestId"),
+    formData.get("reason")
+  );
+  if ("error" in result) {
+    return { error: result.error };
+  }
+  const fromName = result.item.locations.find((row) => row.locationId === String(formData.get("fromLocationId")))?.name;
+  const toName = result.item.locations.find((row) => row.locationId === String(formData.get("toLocationId")))?.name;
+  const amount = String(formData.get("quantity") ?? "").trim();
+  revalidatePath("/");
+  revalidatePath("/items");
+  revalidatePath("/history");
+  revalidatePath(`/items/${result.item.id}`);
+  return {
+    saved: true,
+    message:
+      fromName && toName
+        ? `Transferred ${amount} ${result.item.name}. ${fromName} → ${toName}. Total on hand is ${result.item.quantity}.`
+        : `Transferred ${amount} ${result.item.name}. Total on hand is ${result.item.quantity}.`,
+  };
 }

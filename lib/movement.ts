@@ -2,7 +2,7 @@ import { businessZone } from "@/lib/business-time";
 
 const zone = businessZone;
 
-export const stockActions = ["ADD", "REMOVE", "AUDIT", "NEW_ITEM"] as const;
+export const stockActions = ["ADD", "REMOVE", "AUDIT", "NEW_ITEM", "TRANSFER"] as const;
 
 export type StockAction = (typeof stockActions)[number];
 
@@ -26,6 +26,7 @@ export const actionFilterLabels: Record<StockAction, string> = {
   REMOVE: "Deducted",
   AUDIT: "Corrected",
   NEW_ITEM: "Received",
+  TRANSFER: "Transferred",
 };
 
 export function movementTitle(entry: { action: string; amount: number }) {
@@ -41,17 +42,40 @@ export function movementTitle(entry: { action: string; amount: number }) {
   if (entry.action === "NEW_ITEM") {
     return `Received ${entry.amount}`;
   }
+  if (entry.action === "TRANSFER") {
+    return `Transferred ${entry.amount}`;
+  }
   return entry.action;
 }
 
 export function movementQuantityLine(entry: {
+  action?: string;
   quantityBefore: number | null;
   quantityAfter: number | null;
+  locationName?: string | null;
+  fromLocationName?: string | null;
+  toLocationName?: string | null;
+  sourceQuantityBefore?: number | null;
+  sourceQuantityAfter?: number | null;
+  destinationQuantityBefore?: number | null;
+  destinationQuantityAfter?: number | null;
 }) {
+  if (entry.action === "TRANSFER" && entry.fromLocationName && entry.toLocationName) {
+    const counted =
+      entry.sourceQuantityBefore != null &&
+      entry.sourceQuantityAfter != null &&
+      entry.destinationQuantityBefore != null &&
+      entry.destinationQuantityAfter != null;
+    const counts = counted
+      ? ` (${entry.sourceQuantityBefore} → ${entry.sourceQuantityAfter}, ${entry.destinationQuantityBefore} → ${entry.destinationQuantityAfter})`
+      : "";
+    return `${entry.fromLocationName} → ${entry.toLocationName}${counts}`;
+  }
   if (entry.quantityBefore === null || entry.quantityAfter === null) {
     return "Recorded before counts were tracked";
   }
-  return `${entry.quantityBefore} → ${entry.quantityAfter}`;
+  const change = `${entry.quantityBefore} → ${entry.quantityAfter}`;
+  return entry.locationName ? `${entry.locationName} · ${change}` : change;
 }
 
 export function formatMovementTime(value: Date) {
@@ -83,6 +107,9 @@ export function movementIsConsistent(entry: {
   }
   if (entry.action === "AUDIT") {
     return Math.abs(delta) === entry.amount && entry.quantityAfter >= 0;
+  }
+  if (entry.action === "TRANSFER") {
+    return delta === 0 && entry.amount > 0 && entry.quantityAfter >= 0;
   }
   return false;
 }

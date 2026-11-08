@@ -28,9 +28,9 @@ model LoginThrottle {
 }
 
 model Location {
-  id    String @id @default(cuid())
-  name  String @unique
-  items Item[]
+  id       String         @id @default(cuid())
+  name     String         @unique
+  balances StockBalance[]
 }
 
 model Category {
@@ -44,10 +44,7 @@ model Item {
   name         String
   sku          String    @unique
   description  String?
-  quantity     Int       @default(0)
-  threshold    Int       @default(5) // Low stock warning level
-  locationId   String
-  location     Location  @relation(fields: [locationId], references: [id])
+  threshold    Int       @default(5) // Low stock warning level for the total across locations
   categoryId   String
   category     Category  @relation(fields: [categoryId], references: [id])
   qrCodeData   String    @unique // The string encoded in the QR
@@ -56,7 +53,20 @@ model Item {
   isManualOos  Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  balances     StockBalance[]
   History      History[]
+}
+
+// One balance per catalog item and physical location. Item.quantity is not stored.
+model StockBalance {
+  id         String   @id @default(cuid())
+  itemId     String
+  locationId String
+  quantity   Int      @default(0)
+  item       Item     @relation(fields: [itemId], references: [id])
+  location   Location @relation(fields: [locationId], references: [id])
+
+  @@unique([itemId, locationId])
 }
 
 model History {
@@ -65,12 +75,19 @@ model History {
   item           Item     @relation(fields: [itemId], references: [id])
   userId         String?
   user           User?    @relation(fields: [userId], references: [id])
-  actorName      String?
-  action         String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM"
-  amount         Int
-  quantityBefore Int?
-  quantityAfter  Int?
-  reason         String?
-  requestId      String?  @unique
-  timestamp      DateTime @default(now())
+  actorName                     String?
+  action                        String // "ADD", "REMOVE", "AUDIT", "NEW_ITEM", "TRANSFER"
+  amount                        Int
+  quantityBefore                Int?
+  quantityAfter                 Int?
+  locationName                  String?
+  fromLocationName              String?
+  toLocationName                String?
+  sourceQuantityBefore          Int?
+  sourceQuantityAfter           Int?
+  destinationQuantityBefore     Int?
+  destinationQuantityAfter      Int?
+  reason                        String?
+  requestId                     String?  @unique
+  timestamp                     DateTime @default(now())
 }

@@ -32,6 +32,7 @@ export type CatalogItem = {
   quantity: number;
   threshold: number;
   locationName: string;
+  locationNames: string[];
   categoryId: string;
   categoryName: string;
   qrCodeData: string;
@@ -60,7 +61,7 @@ export function ItemCatalog({
   const [direction, setDirection] = useState<"asc" | "desc">("asc");
 
   const locationNames = useMemo(() => {
-    return Array.from(new Set(items.map((item) => item.locationName))).sort((left, right) =>
+    return Array.from(new Set(items.flatMap((item) => item.locationNames))).sort((left, right) =>
       left.localeCompare(right)
     );
   }, [items]);
@@ -69,12 +70,14 @@ export function ItemCatalog({
     const needle = query.trim().toLowerCase();
     const filtered = items.filter((item) => {
       const matchesCategory = categoryId === "all" || item.categoryId === categoryId;
-      const matchesLocation = locationName === "all" || item.locationName === locationName;
+      const matchesLocation =
+        locationName === "all" || item.locationNames.includes(locationName) || item.locationName === locationName;
       const matchesText =
         needle.length === 0 ||
         item.name.toLowerCase().includes(needle) ||
         item.sku.toLowerCase().includes(needle) ||
         item.locationName.toLowerCase().includes(needle) ||
+        item.locationNames.some((name) => name.toLowerCase().includes(needle)) ||
         item.categoryName.toLowerCase().includes(needle);
       return matchesCategory && matchesLocation && matchesText;
     });
