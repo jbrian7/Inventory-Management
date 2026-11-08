@@ -32,7 +32,7 @@ test("tablet layout keeps the phone column and widens from the md breakpoint", (
 
   const staff = primaryNav(false).map((item) => item.label);
   const manager = primaryNav(true).map((item) => item.label);
-  assert.deepEqual(staff, ["Home", "Scan", "Items", "History"]);
+  assert.deepEqual(staff, ["Home", "Scan", "Items", "Totes", "History"]);
   assert.equal(manager.includes("Settings"), true);
   assert.equal(staff.includes("Settings"), false);
 });

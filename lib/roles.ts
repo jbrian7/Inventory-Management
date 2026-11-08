@@ -20,6 +20,10 @@ export function canEditInventory(role: string) {
   return role === "ADMIN" || role === "MANAGER";
 }
 
+export function canExportReports(role: string) {
+  return role === "ADMIN";
+}
+
 export function rolesAssignableBy(actorRole: Role): Role[] {
   if (actorRole === "ADMIN") {
     return ["ADMIN", "MANAGER", "STAFF"];

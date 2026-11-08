@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isPublicTotePath } from "@/lib/public-path";
 import { openSession, sessionCookieName } from "@/lib/session";
 
 function continueWithPath(request: NextRequest) {
@@ -20,6 +21,14 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/", request.url));
     }
     return continueWithPath(request);
+  }
+
+  if (isPublicTotePath(pathname)) {
+    const response = continueWithPath(request);
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
   }
 
   if (!session) {

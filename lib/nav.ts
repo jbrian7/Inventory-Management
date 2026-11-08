@@ -7,6 +7,7 @@ const baseNav: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/scan", label: "Scan" },
   { href: "/items", label: "Items" },
+  { href: "/totes", label: "Totes" },
   { href: "/history", label: "History" },
 ];
 
@@ -18,7 +19,10 @@ export function primaryNav(showSettings: boolean): NavItem[] {
 }
 
 export function navColumns(count: number) {
-  if (count >= 5) {
+  if (count >= 6) {
+    return "grid-cols-6";
+  }
+  if (count === 5) {
     return "grid-cols-5";
   }
   if (count === 4) {

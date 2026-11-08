@@ -6,7 +6,7 @@ import { roleLabels, type Role } from "@/lib/roles";
 
 export function SessionBar({ name, role }: { name: string; role: Role }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-3">
+    <div className="mb-4 flex items-start justify-between gap-3 print:hidden">
       <div className="min-w-0">
         <div className="lg:hidden">
           <ProductLockup product={productName} business={businessName()} />

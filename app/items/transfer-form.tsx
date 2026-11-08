@@ -16,15 +16,25 @@ export function TransferForm({
   itemName,
   places,
   balances,
+  initialFromId,
+  initialToId,
 }: {
   itemId: string;
   itemName: string;
   places: { id: string; name: string }[];
   balances: { locationId: string; name: string; quantity: number }[];
+  initialFromId?: string;
+  initialToId?: string;
 }) {
   const [state, setState] = useState<TransferState>({});
-  const [fromId, setFromId] = useState(balances[0]?.locationId ?? places[0]?.id ?? "");
-  const [toId, setToId] = useState(places.find((place) => place.id !== fromId)?.id ?? "");
+  const startingFrom = places.some((place) => place.id === initialFromId)
+    ? initialFromId ?? ""
+    : balances[0]?.locationId ?? places[0]?.id ?? "";
+  const startingTo = places.some((place) => place.id === initialToId)
+    ? initialToId ?? ""
+    : places.find((place) => place.id !== startingFrom)?.id ?? "";
+  const [fromId, setFromId] = useState(startingFrom);
+  const [toId, setToId] = useState(startingTo);
   const retryId = useRef<string | null>(null);
   const submitting = useRef(false);
   const available = balances.find((row) => row.locationId === fromId)?.quantity ?? 0;

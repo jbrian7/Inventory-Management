@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
     "lint": "next lint",
-    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/print.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/layout.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/hardening.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/brand.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/transfer.test.ts",
+    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/auth.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/stock.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/dashboard.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/print.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/layout.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/hardening.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/brand.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/transfer.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/tote.test.ts && tsx --tsconfig tsconfig.json --test --test-concurrency=1 tests/tote-routes.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.59.0",
     "next": "14.2.35",
+    "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^3.7.0",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "dotenv": "^18.0.8",

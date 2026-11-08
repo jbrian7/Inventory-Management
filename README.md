@@ -79,6 +79,7 @@ npx tsx scripts/migrate-user-auth.ts
 npx tsx scripts/migrate-stock-history.ts
 npx tsx scripts/migrate-actor-name.ts
 npx tsx scripts/migrate-location-balances.ts
+npx tsx scripts/migrate-totes.ts
 npx prisma db push
 ```
 
@@ -86,7 +87,8 @@ npx prisma db push
 2. `migrate-stock-history.ts` adds the before/after quantity columns. Older rows stay in place with those fields empty.
 3. `migrate-actor-name.ts` stores the staff name on movements that still point at a user. Rows with no user stay blank and show as Unknown.
 4. `migrate-location-balances.ts` copies each item's quantity onto one balance at its current location, then removes `Item.quantity` and `Item.locationId`. It does not add stock at any other location. Item ids, SKUs, QR values, and history rows stay the same.
-5. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
+5. `migrate-totes.ts` adds empty tote tables. It does not create totes or change quantities, history, or item QR values.
+6. `prisma db push` aligns the SQLite file with `prisma/schema.prisma` without deleting inventory.
 
 Back up `dev.db` and `.env` together. The pepper is required to check PINs. A safe copy is a file copy while the app is stopped, or SQLite's online backup:
 
@@ -134,6 +136,44 @@ proxy_set_header X-Real-IP $remote_addr;
 ```
 
 Do not forward a client-supplied `X-Forwarded-For` unchanged.
+
+## Totes and public QR pages
+
+A tote is a dedicated location. Its contents are the stock balances at that location, so a transfer into or out of a tote uses the same audited transfer as any other move. Do not point a tote at the stockroom.
+
+Each tote has an unguessable public token. The phone URL is `PUBLIC_BASE_URL` plus `/t/` and that token. Set `PUBLIC_BASE_URL` to the public https origin, with no path, before printing labels. Localhost and private LAN addresses are rejected. A phone camera opens that page with no login. The page shows the business name, tote name, shelf label, item names, and quantities. It does not show staff, history, or other locations.
+
+Turning the public link off or rotating it makes the old QR return the same not-available page. Print a new label after rotating.
+
+The printed label is 2 inches by 2 inches, with the tote number in large type and a QR quiet zone. Choose a 2 inch label printer, or a letter sheet when the stickers are on ordinary paper. Opening the print dialog does not mean the label printed. The Raspberry Pi print server remains optional and reports whether it accepted the job.
+
+### Internet deployment
+
+Only `/t/<token>` is public. Login is required for items, totes, scan, history, settings, reports, and every other page. The public response is read-only, sends `noindex`, and does not set a session cookie.
+
+Public rate limits require `npm start`, which runs `server.js`, or `TRUST_PROXY=1` with a proxy you control. `server.js` records the TCP peer and signs it with `AUTH_SECRET`. A browser-supplied `X-Forwarded-For`, `X-Real-IP`, or `x-inventory-peer` is ignored unless `TRUST_PROXY=1`. `next start` does not do this, so it is not the production command for public tote pages.
+
+Put TLS on a reverse proxy you control. The proxy must replace the forwarding header with the visitor it actually accepted:
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header Host $host;
+```
+
+Then set `TRUST_PROXY=1` and `PUBLIC_BASE_URL` to that https origin. Do not append a client-supplied `X-Forwarded-For`. People who share one public IP, including phones on the same network, share the same 30-request bucket. That is the address the server or the trusted proxy can see.
+
+SQLite and `.env` stay on the server. They are not served as web files. Google Sheets is an export only.
+
+PIN lockout on the store LAN still shares one counter when `TRUST_PROXY` is unset. That is separate from public tote limits.
+
+## Google Sheets
+
+Admins can download CSV files from Reports. Import those files into Google Sheets. Editing the spreadsheet does not change SQLite, which stays the live inventory.
+
+The CSV escapes quotes and prefixes cells that start with `=`, `+`, `-`, `@`, or a tab so a spreadsheet does not treat them as formulas. Exports omit public tokens, PINs, and staff names.
+
+A later optional job could upload those same files with the Google Sheets API. That is not built. The app does not need Google credentials to run.
 
 ## Printing
 

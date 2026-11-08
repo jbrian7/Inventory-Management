@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { History, LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
+import { Archive, History, LayoutDashboard, Package, ScanLine, Settings } from "lucide-react";
 
 import { ProductLockup } from "@/components/product-lockup";
-import { primaryNav, type NavItem } from "@/lib/nav";
+import { navColumns, primaryNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 const icons = {
   "/": LayoutDashboard,
   "/scan": ScanLine,
   "/items": Package,
+  "/totes": Archive,
   "/history": History,
   "/settings": Settings,
 } as const;
@@ -27,12 +28,12 @@ export function BottomNav({ showSettings }: { showSettings: boolean }) {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 px-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 px-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden lg:hidden"
     >
       <ul
         className={cn(
           "mx-auto grid w-full max-w-md pb-[env(safe-area-inset-bottom)] tablet:max-w-3xl",
-          visible.length >= 5 ? "grid-cols-5" : visible.length === 4 ? "grid-cols-4" : "grid-cols-3"
+          navColumns(visible.length)
         )}
       >
         {visible.map((item) => (
@@ -58,7 +59,7 @@ export function SideNav({
   return (
     <nav
       aria-label="Primary"
-      className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r bg-background py-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-3 lg:flex"
+      className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r bg-background py-6 pl-[max(0.75rem,env(safe-area-inset-left))] pr-3 print:hidden lg:flex"
     >
       <div className="px-3 pb-4">
         <ProductLockup product={product} business={business} />

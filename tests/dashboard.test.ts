@@ -202,14 +202,14 @@ test("home actions and navigation follow role", () => {
   const managerNav = primaryNav(true);
   assert.deepEqual(
     staffNav.map((item) => item.label),
-    ["Home", "Scan", "Items", "History"]
+    ["Home", "Scan", "Items", "Totes", "History"]
   );
   assert.equal(
     managerNav.some((item) => item.href === "/settings"),
     true
   );
-  assert.equal(navColumns(staffNav.length), "grid-cols-4");
-  assert.equal(navColumns(managerNav.length), "grid-cols-5");
+  assert.equal(navColumns(staffNav.length), "grid-cols-5");
+  assert.equal(navColumns(managerNav.length), "grid-cols-6");
 
   assert.equal(canViewHistory("STAFF"), true);
   assert.equal(canViewHistory("MANAGER"), true);
