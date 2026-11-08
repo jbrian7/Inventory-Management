@@ -1,3 +1,4 @@
+import { isPrivateHost } from "@/lib/public-url";
 import { isRole, type Role } from "@/lib/roles";
 
 export const sessionCookieName = "zap_session";
@@ -114,10 +115,60 @@ export async function openSession(token: string | undefined | null): Promise<Ses
   }
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: sessionTtlSeconds,
+export type CookieSecureInput = {
+  nodeEnv?: string;
+  cookieSecure?: string;
+  trustProxy?: string;
+  forwardedProto?: string | null;
+  host?: string | null;
 };
+
+function headerHost(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed.startsWith("[")) {
+    const end = trimmed.indexOf("]");
+    return end > 1 ? trimmed.slice(1, end) : null;
+  }
+  const colon = trimmed.lastIndexOf(":");
+  if (colon > 0 && trimmed.indexOf(":") === colon) {
+    return trimmed.slice(0, colon);
+  }
+  return trimmed || null;
+}
+
+function firstProto(value: string | null | undefined) {
+  return value?.split(",")[0]?.trim().toLowerCase() || "";
+}
+
+// Public production stays Secure. Localhost and private LAN hosts on plain HTTP do not,
+// because those browsers drop a Secure cookie and the next request looks signed out.
+export function sessionCookieSecure(input: CookieSecureInput = {}) {
+  if (input.cookieSecure === "1") {
+    return true;
+  }
+  if (input.cookieSecure === "0") {
+    return false;
+  }
+  const trustedProto = input.trustProxy === "1" ? firstProto(input.forwardedProto) : "";
+  if (trustedProto === "https") {
+    return true;
+  }
+  const host = headerHost(input.host);
+  if (host && isPrivateHost(host)) {
+    return false;
+  }
+  return (input.nodeEnv ?? "production") === "production";
+}
+
+export function sessionCookieAttributes(secure: boolean) {
+  return {
+    httpOnly: true as const,
+    sameSite: "lax" as const,
+    secure,
+    path: "/",
+    maxAge: sessionTtlSeconds,
+  };
+}

@@ -59,7 +59,21 @@ ZAP_ALLOW_SEED=1 npx prisma db seed
 npm run dev
 ```
 
-The app listens at `http://localhost:3000`.
+The app listens at `http://localhost:3000` during `npm run dev`.
+
+## Signing in
+
+`AUTH_SECRET` signs the session cookie. `PIN_PEPPER` finds the account. Both must be the values that belong with this database. A different pepper looks like a wrong PIN. A missing secret or pepper returns “Sign-in is not configured.” The database path is `DATABASE_URL`. An empty file has no accounts. Do not seed a store database to fix a sign-in problem.
+
+The session cookie is `Secure` on a public production host, and whenever a trusted proxy says the request is HTTPS (`TRUST_PROXY=1` and `X-Forwarded-Proto: https`). Browsers drop a `Secure` cookie on plain HTTP, so the PIN can be accepted and the next page sends you back to sign-in. Local development, `localhost`, and a private LAN host such as `http://192.168.x.x:3000` omit `Secure` so the cookie is kept. `COOKIE_SECURE=1` forces `Secure`. `COOKIE_SECURE=0` turns it off. Leave `COOKIE_SECURE` unset on a public HTTPS site.
+
+| How you open the app | What to run | Cookie |
+| --- | --- | --- |
+| `http://localhost:3000` on this machine | `npm run dev` | Not `Secure`. Sign-in stays on this browser. |
+| `http://192.168.x.x:3000` from a phone on the store LAN | `npm start` (`server.js`) | Not `Secure`, because the host is a private address. |
+| `https://inventory.example.com` | `npm start` behind your TLS proxy | `Secure`. Set `TRUST_PROXY=1` and have the proxy send `X-Forwarded-Proto: https`. |
+
+`npm start` gives each device its own PIN lockout from the TCP address `server.js` stamps. Five failures in ten minutes lock that device. `npm run dev` does not stamp the address, so every attempt on that process shares one counter. A forwarded address is used only when `TRUST_PROXY=1` and your proxy replaces the header. A wrong PIN or a thrown sign-in error clears the pad so it does not stay on “Checking PIN…”.
 
 For a store database, do not run the seed. Create one admin instead. This does not change inventory:
 
@@ -128,7 +142,7 @@ Printed QR codes still identify the catalog item. Add and deduct apply to the lo
 
 ## Login attempts
 
-Failed PINs are counted in the database. Five failures in ten minutes lock that client for ten minutes. On the store LAN, with no reverse proxy, every device shares one counter. That is intentional: the browser cannot supply its own address.
+Failed PINs are counted in the database. Five failures in ten minutes lock that device for ten minutes. With `npm start`, the counter is the TCP address stamped by `server.js`, so two phones on the LAN do not lock each other. With `npm run dev`, there is no stamp and every attempt shares one counter.
 
 Set `TRUST_PROXY=1` only when a proxy you run replaces `X-Forwarded-For` with the real client, or appends it. The app uses the last address in that header, then `X-Real-IP` if the forwarded header is empty. Example for a single nginx in front of the app:
 
@@ -160,6 +174,7 @@ Put TLS on a reverse proxy you control. The proxy must replace the forwarding he
 ```nginx
 proxy_set_header X-Forwarded-For $remote_addr;
 proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header Host $host;
 ```
 
@@ -167,7 +182,7 @@ Then set `TRUST_PROXY=1` and `PUBLIC_BASE_URL` to that https origin. Do not appe
 
 SQLite and `.env` stay on the server. They are not served as web files. Google Sheets is an export only.
 
-PIN lockout on the store LAN still shares one counter when `TRUST_PROXY` is unset. That is separate from public tote limits.
+PIN lockout with `npm start` uses that same stamped address, one counter per device. `npm run dev` still shares one counter. That is separate from the public tote limit.
 
 ## Google Sheets
 

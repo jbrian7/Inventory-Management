@@ -67,10 +67,12 @@ export async function submitMove(_previous: IntakeState, formData: FormData): Pr
   if (!lines) {
     return { error: "Choose at least one product." };
   }
-  const destination = String(formData.get("toLocationId") ?? "").trim();
   const result = await moveStock(
     user,
-    lines.map((line) => ({ ...line, toLocationId: destination || String((line as { toLocationId?: string }).toLocationId ?? "") })),
+    lines.map((line) => ({
+      ...line,
+      toLocationId: String((line as { toLocationId?: string }).toLocationId ?? "").trim(),
+    })),
     formData.get("requestId")
   );
   if ("error" in result) {

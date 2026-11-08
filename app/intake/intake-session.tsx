@@ -7,6 +7,7 @@ import { submitIntake, submitMove, submitRemoval, type IntakeState } from "@/app
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { queuedIntakeLines, queuedRowDetail } from "@/lib/intake-lines";
 import { suggestProducts } from "@/lib/product-match";
 import { nextTransferRequestId } from "@/lib/transfer-request";
 
@@ -121,22 +122,9 @@ export function IntakeSession({
     formData.set(
       "lines",
       JSON.stringify(
-        rows.map((row) => ({
-          itemId: row.itemId,
-          createNew: row.createNew,
-          name: row.name,
-          quantity: Number(row.quantity),
-          locationId: mode === "add" ? row.locationId : placeId,
-          toLocationId: toPlaceId,
-          categoryName: row.categoryName,
-          description: row.description,
-          barcode: row.barcode,
-        }))
+        queuedIntakeLines(rows)
       )
     );
-    if (mode === "move") {
-      formData.set("toLocationId", toPlaceId);
-    }
     try {
       const result =
         mode === "remove" ? await submitRemoval({}, formData) : mode === "move" ? await submitMove({}, formData) : await submitIntake({}, formData);
@@ -178,12 +166,11 @@ export function IntakeSession({
               ))}
             </select>
           </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="intake-qty">Quantity</Label>
-            <Input id="intake-qty" inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="h-12" />
-          </div>
-        )}
+        ) : null}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="intake-qty">Quantity</Label>
+          <Input id="intake-qty" inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="h-12" />
+        </div>
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="intake-search">Product</Label>
@@ -242,10 +229,7 @@ export function IntakeSession({
               <li key={row.key} className="flex items-center justify-between gap-3 border-b px-4 py-3 text-sm last:border-b-0">
                 <span>
                   <span className="font-medium">{row.name}</span>
-                  <span className="block text-muted-foreground">
-                    {row.createNew ? "New" : "Existing"} · {row.quantity}
-                    {mode === "move" ? ` → ${places.find((place) => place.id === row.toLocationId)?.name ?? ""}` : ""}
-                  </span>
+                  <span className="block text-muted-foreground">{queuedRowDetail(row, places, mode)}</span>
                 </span>
                 <Button type="button" variant="outline" className="h-11" onClick={() => setRows((current) => current.filter((entry) => entry.key !== row.key))}>
                   Remove

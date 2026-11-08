@@ -15,6 +15,11 @@ const generalCategory = "General";
 
 class IntakeRejected extends Error {}
 
+function isBusy(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return message.includes("database is locked") || message.includes("SQLITE_BUSY");
+}
+
 export type IntakeLine = {
   itemId?: string | null;
   createNew?: boolean;
@@ -97,7 +102,8 @@ export async function receiveStock(user: Actor, lines: IntakeLine[], requestId: 
     }
   }
 
-  try {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
     return await db.$transaction(async (tx) => {
       const prior = await tx.stockReceipt.findUnique({ where: { requestId: submission } });
       if (prior) {
@@ -143,8 +149,13 @@ export async function receiveStock(user: Actor, lines: IntakeLine[], requestId: 
     if (error instanceof IntakeRejected) {
       return { error: error.message };
     }
+    if (isBusy(error) && attempt < 5) {
+      continue;
+    }
     throw error;
+    }
   }
+  return { error: "The receipt could not be saved." };
 }
 
 async function addReceivedItem(
@@ -157,10 +168,14 @@ async function addReceivedItem(
   locationName: string
 ) {
   const item = await tx.item.findUnique({ where: { id: line.itemId!.trim() }, include: { balances: true } });
-  if (!item || item.archivedAt) {
+  if (!item) {
     return { error: "Choose a product that is still in the catalog." };
   }
   await tx.$executeRawUnsafe("UPDATE Item SET sku = sku WHERE id = ?", item.id);
+  const lockedItem = await tx.item.findUnique({ where: { id: item.id }, select: { archivedAt: true } });
+  if (!lockedItem || lockedItem.archivedAt) {
+    return { error: "Choose a product that is still in the catalog." };
+  }
   const current = await tx.stockBalance.findUnique({
     where: { itemId_locationId: { itemId: item.id, locationId: line.locationId.trim() } },
   });
@@ -267,26 +282,39 @@ export async function archiveItems(user: Actor, ids: string[], db: typeof prisma
   if (unique.length < 1) {
     return { error: "Choose a product to archive." };
   }
-  const items = await db.item.findMany({
-    where: { id: { in: unique } },
-    include: { balances: { select: { quantity: true } } },
-  });
-  if (items.length !== unique.length) {
-    return { error: "Choose a product that exists." };
-  }
-  for (const item of items) {
-    if (item.archivedAt) {
-      continue;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      return await db.$transaction(async (tx) => {
+        for (const id of unique) {
+          await tx.$executeRawUnsafe("UPDATE Item SET sku = sku WHERE id = ?", id);
+          const item = await tx.item.findUnique({
+            where: { id },
+            include: { balances: { select: { quantity: true } } },
+          });
+          if (!item) {
+            throw new IntakeRejected("Choose a product that exists.");
+          }
+          if (item.archivedAt) {
+            continue;
+          }
+          if (totalQuantity(item.balances) > 0) {
+            throw new IntakeRejected(`${item.name} still has stock. Deplete it before archiving.`);
+          }
+          await tx.item.update({ where: { id }, data: { archivedAt: new Date() } });
+        }
+        return { saved: true as const, count: unique.length };
+      });
+    } catch (error) {
+      if (isBusy(error) && attempt < 5) {
+        continue;
+      }
+      if (error instanceof IntakeRejected) {
+        return { error: error.message };
+      }
+      throw error;
     }
-    if (totalQuantity(item.balances) > 0) {
-      return { error: `${item.name} still has stock. Deplete it before archiving.` };
-    }
   }
-  await db.item.updateMany({
-    where: { id: { in: unique }, archivedAt: null },
-    data: { archivedAt: new Date() },
-  });
-  return { saved: true as const, count: unique.length };
+  return { error: "The product could not be archived." };
 }
 
 export async function restoreItems(user: Actor, ids: string[], db: typeof prisma = prisma) {

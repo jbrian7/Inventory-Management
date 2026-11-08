@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Delete } from "lucide-react";
 
 import { login } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
+import { loginAttemptKey, loginCookieMessage, loginInterruptedMessage } from "@/lib/login-messages";
 
 const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
 
@@ -13,11 +14,29 @@ export function PinPad() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    const stamp = Number(window.sessionStorage.getItem(loginAttemptKey) || "0");
+    window.sessionStorage.removeItem(loginAttemptKey);
+    if (stamp > 0 && Date.now() - stamp < 15000) {
+      setError(loginCookieMessage);
+    }
+  }, []);
+
   async function submit(next: string) {
     setPending(true);
-    const result = await login(next);
-    if (result?.error) {
-      setError(result.error);
+    setError(null);
+    try {
+      const result = await login(next);
+      if (!result || "error" in result) {
+        setError(result && "error" in result ? result.error : loginInterruptedMessage);
+        setPin("");
+        setPending(false);
+        return;
+      }
+      window.sessionStorage.setItem(loginAttemptKey, String(Date.now()));
+      window.location.assign("/");
+    } catch {
+      setError(loginInterruptedMessage);
       setPin("");
       setPending(false);
     }

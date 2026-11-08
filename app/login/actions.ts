@@ -4,25 +4,29 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { authenticatePin } from "@/lib/authenticate-pin";
-import { clientAddress } from "@/lib/client-address";
 import { buildSession, clearSession, setSession } from "@/lib/current-user";
+import { publicClientKey } from "@/lib/public-client";
 
 function throttleKey() {
-  return clientAddress(headers());
+  return publicClientKey(headers());
 }
 
 export async function login(pin: string) {
-  const result = await authenticatePin(pin, throttleKey());
-  if ("error" in result) {
-    return result;
-  }
+  try {
+    const result = await authenticatePin(pin, throttleKey());
+    if ("error" in result) {
+      return result;
+    }
 
-  const session = buildSession(result.user);
-  if (!session) {
-    return { error: "That PIN is not recognized." };
+    const session = buildSession(result.user);
+    if (!session) {
+      return { error: "That PIN is not recognized." };
+    }
+    await setSession(session);
+    return { ok: true as const };
+  } catch {
+    return { error: "Sign-in is not configured. Check the server environment and try again." };
   }
-  await setSession(session);
-  redirect("/");
 }
 
 export async function logout() {

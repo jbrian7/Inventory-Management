@@ -1,4 +1,5 @@
 import { logout } from "@/app/login/actions";
+import { ClearLoginAttempt } from "@/components/clear-login-attempt";
 import { ProductLockup } from "@/components/product-lockup";
 import { Button } from "@/components/ui/button";
 import { businessName, productName } from "@/lib/brand";
@@ -7,6 +8,7 @@ import { roleLabels, type Role } from "@/lib/roles";
 export function SessionBar({ name, role }: { name: string; role: Role }) {
   return (
     <div className="mb-4 flex items-start justify-between gap-3 print:hidden">
+      <ClearLoginAttempt />
       <div className="min-w-0">
         <div className="lg:hidden">
           <ProductLockup product={productName} business={businessName()} />

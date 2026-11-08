@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
 import { archiveItems, moveStock, receiveStock, removeStock, restoreItems, suggestProducts } from "@/lib/intake";
+import { queuedIntakeLines, queuedRowDetail } from "@/lib/intake-lines";
 import { lifecycleOf } from "@/lib/lifecycle";
 import { pinCredential } from "@/lib/pin";
 import { prisma } from "@/lib/prisma";
@@ -37,6 +38,48 @@ before(async () => {
 after(async () => {
   await prisma.$disconnect();
   fs.rmSync(testDatabasePath, { force: true });
+});
+
+test("queued rows keep their own places and quantities", () => {
+  const rows = [
+    {
+      itemId: "red",
+      createNew: false,
+      name: "Red ball",
+      quantity: "2",
+      locationId: "bin-a",
+      toLocationId: "counter",
+      categoryName: "",
+      description: "",
+      barcode: "",
+    },
+    {
+      itemId: "blue",
+      createNew: false,
+      name: "Blue ball",
+      quantity: "5",
+      locationId: "bin-b",
+      toLocationId: "stock",
+      categoryName: "",
+      description: "",
+      barcode: "",
+    },
+  ];
+  const lines = queuedIntakeLines(rows);
+  assert.equal(lines[0]?.locationId, "bin-a");
+  assert.equal(lines[0]?.toLocationId, "counter");
+  assert.equal(lines[0]?.quantity, 2);
+  assert.equal(lines[1]?.locationId, "bin-b");
+  assert.equal(lines[1]?.toLocationId, "stock");
+  assert.equal(lines[1]?.quantity, 5);
+  const places = [
+    { id: "bin-a", name: "Bin A" },
+    { id: "bin-b", name: "Bin B" },
+    { id: "counter", name: "Counter" },
+    { id: "stock", name: "Stockroom" },
+  ];
+  assert.equal(queuedRowDetail(rows[0]!, places, "move"), "Existing · 2 · Bin A → Counter");
+  assert.equal(queuedRowDetail(rows[1]!, places, "remove"), "Existing · 5 · Bin B");
 });
 
 test("suggestions do not choose a product for the operator", () => {
@@ -162,6 +205,65 @@ test("a batch receipt creates distinct products and a move keeps the total", asy
   assert.equal(destination.quantity, 2);
   const transfer = await prisma.history.findFirstOrThrow({ where: { itemId: red.id, action: "TRANSFER" } });
   assert.equal(transfer.quantityBefore, transfer.quantityAfter);
+});
+
+test("one batch can move different quantities between different places", async () => {
+  const counter = await prisma.location.create({ data: { name: "Front counter" } });
+  const shelf = await prisma.location.create({ data: { name: "Back shelf" } });
+  const created = await receiveStock(
+    manager,
+    [
+      { createNew: true, name: "Red paddle", quantity: 4, locationId },
+      { createNew: true, name: "Blue paddle", quantity: 6, locationId: counter.id },
+    ],
+    "intake-places-01"
+  );
+  assert.equal("saved" in created && created.lines.length, 2);
+  const red = await prisma.item.findFirstOrThrow({ where: { name: "Red paddle" } });
+  const blue = await prisma.item.findFirstOrThrow({ where: { name: "Blue paddle" } });
+  const moved = await moveStock(
+    staff,
+    [
+      { itemId: red.id, quantity: 3, locationId, toLocationId: shelf.id },
+      { itemId: blue.id, quantity: 1, locationId: counter.id, toLocationId: locationId },
+    ],
+    "intake-places-02"
+  );
+  assert.equal("saved" in moved && moved.saved, true);
+  assert.equal((await prisma.stockBalance.findFirstOrThrow({ where: { itemId: red.id, locationId } })).quantity, 1);
+  assert.equal((await prisma.stockBalance.findFirstOrThrow({ where: { itemId: red.id, locationId: shelf.id } })).quantity, 3);
+  assert.equal((await prisma.stockBalance.findFirstOrThrow({ where: { itemId: blue.id, locationId: counter.id } })).quantity, 5);
+  assert.equal((await prisma.stockBalance.findFirstOrThrow({ where: { itemId: blue.id, locationId } })).quantity, 1);
+});
+
+test("archive and a receipt cannot leave stock on an archived product", async () => {
+  const created = await receiveStock(
+    manager,
+    [{ createNew: true, name: "Last balloon", quantity: 1, locationId }],
+    "intake-race-create"
+  );
+  assert.equal("saved" in created && created.saved, true);
+  const item = await prisma.item.findFirstOrThrow({ where: { name: "Last balloon" } });
+  const removed = await removeStock(staff, [{ itemId: item.id, quantity: 1, locationId }], "intake-race-clear");
+  assert.equal("saved" in removed && removed.saved, true);
+
+  for (let round = 0; round < 8; round += 1) {
+    await prisma.item.update({ where: { id: item.id }, data: { archivedAt: null } });
+    await prisma.stockBalance.update({
+      where: { itemId_locationId: { itemId: item.id, locationId } },
+      data: { quantity: 0 },
+    });
+    await Promise.all([
+      archiveItems(manager, [item.id]),
+      receiveStock(staff, [{ itemId: item.id, quantity: 2, locationId }], `intake-race-${round}01`),
+    ]);
+    const after = await prisma.item.findUniqueOrThrow({
+      where: { id: item.id },
+      include: { balances: true },
+    });
+    const quantity = after.balances.reduce((sum, balance) => sum + balance.quantity, 0);
+    assert.equal(Boolean(after.archivedAt) && quantity > 0, false);
+  }
 });
 
 test("intake migration keeps legacy quantities and already migrated balances", () => {
