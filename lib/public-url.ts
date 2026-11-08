@@ -18,7 +18,7 @@ export function publicBaseUrl(env?: { PUBLIC_BASE_URL?: string }): { url: string
     return { error: "PUBLIC_BASE_URL must be a public https address." };
   }
   const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  if (!host || host === "localhost" || host.endsWith(".local") || host.endsWith(".localhost") || isPrivateAddress(host)) {
+  if (isPrivateHost(host)) {
     return { error: "PUBLIC_BASE_URL must be a public https address, not localhost or a LAN address." };
   }
   const origin = parsed.origin;
@@ -38,6 +38,19 @@ export function totePublicUrl(token: string, env?: { PUBLIC_BASE_URL?: string })
     return { error: "The public tote address is too long to encode on a label." };
   }
   return { url };
+}
+
+export function isPrivateHost(host: string) {
+  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0] ?? "";
+  if (
+    !normalized ||
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local")
+  ) {
+    return true;
+  }
+  return isPrivateAddress(normalized);
 }
 
 function isPrivateAddress(host: string) {

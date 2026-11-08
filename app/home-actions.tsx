@@ -29,6 +29,9 @@ export function HomeActions({ canEdit }: { canEdit: boolean }) {
           Scan
         </Link>
       </Button>
+      <Button asChild variant="secondary" className="h-12 w-full tablet:h-14 tablet:w-auto">
+        <Link href="/intake">Receive</Link>
+      </Button>
       {canEdit ? (
         <Button asChild variant="secondary" className="h-12 w-full tablet:h-14 tablet:w-auto">
           <Link href="/items">

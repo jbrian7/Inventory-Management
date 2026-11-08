@@ -10,6 +10,10 @@ const exports = [
   { href: "/reports/balances", title: "Balances by location", detail: "One row per item and location." },
   { href: "/reports/totes", title: "Tote contents", detail: "Items currently in each tote. Public links are not included." },
   { href: "/reports/transfers", title: "Transfer history", detail: "Moves between locations. Staff names are not included." },
+  { href: "/reports/received", title: "New products", detail: "Products created in the last 30 days." },
+  { href: "/reports/lifecycle", title: "Depleted and archived", detail: "Products with no stock, and products taken out of daily use." },
+  { href: "/reports/movements", title: "Recent movements", detail: "Stock changes from the last 30 days. Staff names are not included." },
+  { href: "/reports/stale", title: "No recent movement", detail: "In-stock products with no movement in 30 days." },
 ];
 
 export default async function ReportsPage() {

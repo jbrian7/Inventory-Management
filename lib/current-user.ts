@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { isRole } from "@/lib/roles";
@@ -6,8 +6,9 @@ import {
   buildSession,
   openSession,
   sealSession,
+  sessionCookieAttributes,
   sessionCookieName,
-  sessionCookieOptions,
+  sessionCookieSecure,
   type Session,
 } from "@/lib/session";
 
@@ -34,12 +35,28 @@ export async function getCurrentUser() {
   return userFromSession(await readSession());
 }
 
+function cookieAttributes() {
+  const headerList = headers();
+  const secure = sessionCookieSecure({
+    nodeEnv: process.env.NODE_ENV,
+    cookieSecure: process.env.COOKIE_SECURE,
+    trustProxy: process.env.TRUST_PROXY,
+    forwardedProto: process.env.TRUST_PROXY === "1" ? headerList.get("x-forwarded-proto") : null,
+    host:
+      process.env.TRUST_PROXY === "1"
+        ? headerList.get("x-forwarded-host") || headerList.get("host")
+        : headerList.get("host"),
+  });
+  return sessionCookieAttributes(secure);
+}
+
 export async function setSession(session: Session) {
-  cookies().set(sessionCookieName, await sealSession(session), sessionCookieOptions);
+  cookies().set(sessionCookieName, await sealSession(session), cookieAttributes());
 }
 
 export async function clearSession() {
-  cookies().delete(sessionCookieName);
+  const attributes = cookieAttributes();
+  cookies().set(sessionCookieName, "", { ...attributes, maxAge: 0 });
 }
 
 export { buildSession };
