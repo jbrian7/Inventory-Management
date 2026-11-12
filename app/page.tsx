@@ -4,6 +4,8 @@ import { DashboardLoading, HomeActions } from "@/app/home-actions";
 import { HomeDashboard } from "@/app/home-dashboard";
 import { getCurrentUser } from "@/lib/current-user";
 import { homeActions } from "@/lib/dashboard";
+import { usingSheets } from "@/lib/storage/backend";
+import { SheetsHome } from "@/app/sheets-home";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,7 @@ export default async function HomePage({
         <HomeActions canEdit={actions.addItem} />
       </div>
       <Suspense fallback={<DashboardLoading />}>
-        <HomeDashboard />
+        {usingSheets() ? <SheetsHome /> : <HomeDashboard />}
       </Suspense>
     </div>
   );

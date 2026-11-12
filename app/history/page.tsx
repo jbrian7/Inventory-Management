@@ -15,6 +15,8 @@ import {
 } from "@/lib/history-query";
 import { actionFilterLabels, stockActions } from "@/lib/movement";
 import { prisma } from "@/lib/prisma";
+import { usingSheets } from "@/lib/storage/backend";
+import { SheetsHistory } from "@/app/sheets-history";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,9 @@ export default async function HistoryPage({
   };
 }) {
   const user = await getCurrentUser();
+  if (usingSheets()) {
+    return <SheetsHistory />;
+  }
   const denied = historyAccessError(user);
   if (denied) {
     return (

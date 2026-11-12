@@ -6,6 +6,7 @@ import { itemQrPayload } from "@/lib/brand";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { suggestProducts } from "@/lib/product-match";
+import { usingSheets } from "@/lib/storage/backend";
 import { parseAmount, parseRequestId } from "@/lib/stock";
 
 export { suggestProducts };
@@ -67,6 +68,10 @@ export function generateSku() {
 }
 
 export async function receiveStock(user: Actor, lines: IntakeLine[], requestId: unknown, db: typeof prisma = prisma): Promise<IntakeResult> {
+  if (usingSheets() && db === prisma) {
+    const { receiveOnSheets } = await import("@/lib/storage/sheets-stock");
+    return receiveOnSheets(user, lines, requestId);
+  }
   const denied = scanAccessError(user);
   if (denied) {
     return { error: denied };
@@ -274,6 +279,10 @@ async function createReceivedItem(
 }
 
 export async function archiveItems(user: Actor, ids: string[], db: typeof prisma = prisma) {
+  if (usingSheets() && db === prisma) {
+    const { archiveOnSheets } = await import("@/lib/storage/sheets-stock");
+    return archiveOnSheets(user, ids);
+  }
   const denied = inventoryAccessError(user, "edit");
   if (denied) {
     return { error: denied };
@@ -318,6 +327,10 @@ export async function archiveItems(user: Actor, ids: string[], db: typeof prisma
 }
 
 export async function restoreItems(user: Actor, ids: string[], db: typeof prisma = prisma) {
+  if (usingSheets() && db === prisma) {
+    const { restoreOnSheets } = await import("@/lib/storage/sheets-stock");
+    return restoreOnSheets(user, ids);
+  }
   const denied = inventoryAccessError(user, "edit");
   if (denied) {
     return { error: denied };
@@ -339,6 +352,10 @@ export async function moveStock(
   requestId: unknown,
   db: typeof prisma = prisma
 ): Promise<IntakeResult> {
+  if (usingSheets() && db === prisma) {
+    const { moveOnSheets } = await import("@/lib/storage/sheets-stock");
+    return moveOnSheets(user, lines, requestId);
+  }
   const denied = scanAccessError(user);
   if (denied || !user?.id) {
     return { error: denied || "Sign in to scan." };
@@ -454,6 +471,10 @@ export async function moveStock(
 }
 
 export async function removeStock(user: Actor, lines: IntakeLine[], requestId: unknown, db: typeof prisma = prisma): Promise<IntakeResult> {
+  if (usingSheets() && db === prisma) {
+    const { removeOnSheets } = await import("@/lib/storage/sheets-stock");
+    return removeOnSheets(user, lines, requestId);
+  }
   const denied = scanAccessError(user);
   if (denied || !user?.id) {
     return { error: denied || "Sign in to scan." };

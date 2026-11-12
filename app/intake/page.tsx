@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { canEditInventory } from "@/lib/roles";
 import { scanAccessError } from "@/lib/access";
+import { usingSheets } from "@/lib/storage/backend";
 
 export default async function IntakePage({
   searchParams,
@@ -21,7 +22,10 @@ export default async function IntakePage({
   if (scanAccessError(user)) {
     return <p className="text-sm text-muted-foreground">Scanning is turned off for this account.</p>;
   }
-  const [items, locations, totes] = await Promise.all([
+  const sheet = usingSheets() ? await (await import("@/lib/storage/sheets-stock")).readSheetWorkspace() : null;
+  const [items, locations, totes] = sheet
+    ? [sheet.items, sheet.locations, sheet.totes]
+    : await Promise.all([
     prisma.item.findMany({
       where: { archivedAt: null },
       include: { balances: { select: { quantity: true, locationId: true } } },

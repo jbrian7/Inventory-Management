@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/current-user";
 import { archiveItems, restoreItems } from "@/lib/intake";
 import { totalQuantity } from "@/lib/balances";
 import { prisma } from "@/lib/prisma";
+import { usingSheets } from "@/lib/storage/backend";
 
 export async function archiveItemAction(id: string) {
   const user = await getCurrentUser();
@@ -31,10 +32,14 @@ export async function restoreItemAction(id: string) {
 
 export async function archiveDepletedAction(): Promise<void> {
   const user = await getCurrentUser();
-  const items = await prisma.item.findMany({
-    where: { archivedAt: null },
-    include: { balances: { select: { quantity: true } } },
-  });
+  const items = usingSheets()
+    ? (await (await import("@/lib/storage/sheets-stock")).readSheetCatalog())
+        .filter((item) => !item.archivedAt)
+        .map((item) => ({ id: item.id, balances: item.balances }))
+    : await prisma.item.findMany({
+        where: { archivedAt: null },
+        include: { balances: { select: { quantity: true } } },
+      });
   const ids = items.filter((item) => totalQuantity(item.balances) === 0).map((item) => item.id);
   if (ids.length === 0) {
     return;

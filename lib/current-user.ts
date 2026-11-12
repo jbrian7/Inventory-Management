@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
 import { isRole } from "@/lib/roles";
+import { usingSheets } from "@/lib/storage/backend";
 import {
   buildSession,
   openSession,
@@ -21,7 +22,9 @@ export async function userFromSession(session: Session | null) {
   if (!session || session.exp <= Date.now()) {
     return null;
   }
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const user = usingSheets()
+    ? await (await import("@/lib/storage/sheets-stock")).readSheetUserById(session.id)
+    : await prisma.user.findUnique({ where: { id: session.id } });
   if (!user || !user.active || !isRole(user.role)) {
     return null;
   }
