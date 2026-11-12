@@ -2,7 +2,7 @@
 
 Inventory Manager is the product. This deployment's business name is Zap Zone, set with `BUSINESS_NAME`. When that variable is missing or blank, the app shows Your business.
 
-Run one deployment per business. Each copy has its own SQLite file, its own `AUTH_SECRET` and `PIN_PEPPER`, and its own printer URL and token. There is no business switcher and no shared tenant table. The database path for this deployment stays `file:./dev.db`. Item QR values stay `ZAP-ITEM-<id>`, and the session cookie stays `zap_session`.
+Run one deployment per business. Each copy has its own SQLite file, its own `AUTH_SECRET` and `PIN_PEPPER`, and its own printer URL and token. There is no business switcher and no shared tenant table. The database path for this deployment stays `file:./dev.db`. Item QR values stay `ZAP-ITEM-<id>`, and the session cookie stays `zap_session`. Google Sheets is optional (`STORAGE_BACKEND=google_sheets`). SQLite remains the default, and the app writes to only one backend. Setup is in `docs/storage.md`.
 
 Staff scan bin labels on an iPhone or iPad, and the Next.js server on the store LAN records the stock change in SQLite. Labels are sent from that server to a Raspberry Pi print process. The printer token never goes to the browser.
 

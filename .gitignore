@@ -33,6 +33,10 @@ yarn-error.log*
 *.db
 *.db-journal
 
+# Google credentials stay off GitHub
+secrets/
+google-service-account.json
+
 # vercel
 .vercel
 
